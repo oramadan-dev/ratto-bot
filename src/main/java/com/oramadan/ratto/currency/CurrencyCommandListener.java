@@ -49,7 +49,7 @@ public class CurrencyCommandListener extends ListenerAdapter {
         event.deferReply().queue();
         int chedda = currencyService.getCheddaFor(userId);
         event.getHook()
-                .sendMessage("You have **" + chedda + " \uD83E\uDDC0 **")
+                .sendMessage(event.getUser().getAsMention() + " has **" + chedda + " \uD83E\uDDC0**")
                 .queue();
     }
 

@@ -168,6 +168,12 @@ public class DeathrollCommandListener extends ListenerAdapter {
             String threadName = "deathroll-" + sanitizeThreadName(challengerName) + "-vs-" + sanitizeThreadName(challengedName);
             challengeMessage.createThreadChannel(threadName).queue(threadChannel -> {
                 DeathrollGame game = deathrollService.startGame(threadChannel.getIdLong(), challenge);
+                challengeMessage.delete().queue(
+                        success -> {
+                        },
+                        failure -> {
+                        }
+                );
                 threadChannel.sendMessage(buildGameStartMessage(challenge, game))
                         .setComponents(ActionRow.of(Button.primary(ROLL_BUTTON_PREFIX + threadChannel.getIdLong(), "Roll"))).queue(message -> {
                     game.setActivePromptMessageId(message.getIdLong());
@@ -258,7 +264,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
     // -------- Utility Helpers --------
 
     private void disableRollPrompt(ButtonInteractionEvent event) {
-        event.editComponents(ActionRow.of(Button.primary(event.getComponentId(), "Roll").asDisabled())).queue();
+        event.editComponents().queue();
     }
 
     private void scheduleGameTimeout(long threadId, ThreadChannel threadChannel) {
@@ -287,6 +293,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
                 %s has challenged %s to a deathroll.
                 Starting range: `1-%d`.
                 %s
+                Use `/deathroll accept` or `/deathroll decline`.
                 """.formatted(
                 mentionUser(challengerUserId),
                 mentionUser(challengedUserId),
@@ -302,8 +309,11 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
         return """
                 Deathroll started between %s and %s.
+
                 Starting range: `1-%d`.
+
                 %s
+
                 %s rolls first.
                 """.formatted(
                 mentionUser(challenge.challengerId()),
@@ -321,7 +331,9 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
         return """
                 %s rolled **1** out of **%d** and loses.
+
                 %s
+
                 This thread will be deleted in 20 seconds.
                 """.formatted(
                 mentionUser(result.losingUserId()),
@@ -333,7 +345,6 @@ public class DeathrollCommandListener extends ListenerAdapter {
     private String buildNextRollMessage(long userId, DeathrollRollResult result) {
         return """
                 %s rolled **%d** out of **%d**.
-                Next up: %s rolls `1-%d`.
                 """.formatted(
                 mentionUser(userId),
                 result.rolledValue(),
