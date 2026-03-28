@@ -1,7 +1,7 @@
-package com.oramadan.rotto.bot;
+package com.oramadan.ratto.bot;
 
-import com.oramadan.rotto.config.BotConfig;
-import com.oramadan.rotto.deathroll.DeathrollCommandListener;
+import com.oramadan.ratto.config.BotConfig;
+import com.oramadan.ratto.deathroll.DeathrollCommandListener;
 import lombok.NonNull;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;

@@ -3,7 +3,7 @@ plugins {
 	id 'application'
 }
 
-group = 'com.oramadan.rotto'
+group = 'com.oramadan.ratto'
 version = '0.0.1-0'
 
 ext {
@@ -38,5 +38,5 @@ test {
 }
 
 application {
-	mainClass = 'com.oramadan.rotto.RottoApplication'
+	mainClass = 'com.oramadan.ratto.RattoApplication'
 }

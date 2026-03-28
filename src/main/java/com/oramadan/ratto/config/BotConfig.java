@@ -1,4 +1,4 @@
-package com.oramadan.rotto.config;
+package com.oramadan.ratto.config;
 
 import lombok.Getter;
 import lombok.NonNull;

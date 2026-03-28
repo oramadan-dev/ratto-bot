@@ -1,7 +1,7 @@
-package com.oramadan.rotto.deathroll;
+package com.oramadan.ratto.deathroll;
 
-import com.oramadan.rotto.deathroll.dto.DeathrollChallenge;
-import com.oramadan.rotto.deathroll.dto.DeathrollRollResult;
+import com.oramadan.ratto.deathroll.dto.DeathrollChallenge;
+import com.oramadan.ratto.deathroll.dto.DeathrollRollResult;
 
 import java.security.SecureRandom;
 import java.util.Map;
@@ -19,6 +19,7 @@ public class DeathrollService {
     // -------- Challenge Management --------
 
     public Optional<DeathrollChallenge> createChallenge(long guildId, long channelId, long messageId, long challengerId, long challengedId) {
+
         // Do not allow a user to be in multiple challenges or games
         if (hasPendingChallenge(challengerId) || hasPendingChallenge(challengedId) || hasActiveGame(challengerId) || hasActiveGame(challengedId)) {
             return Optional.empty();

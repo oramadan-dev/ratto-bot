@@ -1,4 +1,4 @@
-package com.oramadan.rotto.deathroll;
+package com.oramadan.ratto.deathroll;
 
 import lombok.Getter;
 import lombok.Setter;

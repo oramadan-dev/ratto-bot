@@ -1,4 +1,4 @@
-package com.oramadan.rotto.deathroll.dto;
+package com.oramadan.ratto.deathroll.dto;
 
 public record DeathrollRollResult(
         int rolledValue,

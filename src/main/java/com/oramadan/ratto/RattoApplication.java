@@ -1,10 +1,10 @@
-package com.oramadan.rotto;
+package com.oramadan.ratto;
 
-import com.oramadan.rotto.bot.BotFactory;
-import com.oramadan.rotto.config.BotConfig;
-import com.oramadan.rotto.config.Config;
+import com.oramadan.ratto.bot.BotFactory;
+import com.oramadan.ratto.config.BotConfig;
+import com.oramadan.ratto.config.Config;
 
-public class RottoApplication {
+public class RattoApplication {
 
     public static final String CONFIG_PATH = "config/config.properties";
 

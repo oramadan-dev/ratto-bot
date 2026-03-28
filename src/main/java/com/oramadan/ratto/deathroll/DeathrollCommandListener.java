@@ -1,7 +1,7 @@
-package com.oramadan.rotto.deathroll;
+package com.oramadan.ratto.deathroll;
 
-import com.oramadan.rotto.deathroll.dto.DeathrollChallenge;
-import com.oramadan.rotto.deathroll.dto.DeathrollRollResult;
+import com.oramadan.ratto.deathroll.dto.DeathrollChallenge;
+import com.oramadan.ratto.deathroll.dto.DeathrollRollResult;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
