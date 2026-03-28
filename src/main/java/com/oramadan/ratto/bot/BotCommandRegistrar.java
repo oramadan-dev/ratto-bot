@@ -28,6 +28,28 @@ public class BotCommandRegistrar {
                                                 .addOption(OptionType.USER, "user", "The user who challenged you", true),
                                         new SubcommandData("decline", "Decline a pending deathroll challenge")
                                                 .addOption(OptionType.USER, "user", "The user whose challenge you are declining", true)
+                                ),
+                        // TTRPG
+                        Commands.slash("ttrpg", "Manage TTRPG sessions")
+                                .addSubcommands(
+                                        new SubcommandData("create", "Create a TTRPG session")
+                                                .addOption(OptionType.STRING, "name", "Event name", true)
+                                                .addOption(OptionType.STRING, "when", "When to play in GMT+0, format: yyyy-MM-dd HH:mm", true)
+                                                .addOption(OptionType.USER, "gm", "The game master for this event", true)
+                                                .addOption(OptionType.BOOLEAN, "weekly", "Whether the event recurs every week")
+                                                .addOption(OptionType.STRING, "players", "Mention or paste player ids separated by spaces"),
+                                        new SubcommandData("edit", "Edit one of your TTRPG sessions")
+                                                .addOption(OptionType.INTEGER, "id", "The event id", true)
+                                                .addOption(OptionType.STRING, "name", "Updated event name")
+                                                .addOption(OptionType.STRING, "when", "Updated time in GMT+0, format: yyyy-MM-dd HH:mm")
+                                                .addOption(OptionType.USER, "gm", "Updated game master")
+                                                .addOption(OptionType.BOOLEAN, "weekly", "Updated recurring weekly flag")
+                                                .addOption(OptionType.STRING, "players", "Replacement player list via mentions or ids"),
+                                        new SubcommandData("campaigns", "Show a player's TTRPG campaigns")
+                                                .addOption(OptionType.USER, "user", "The player to inspect"),
+                                        new SubcommandData("week", "Show this week's TTRPG schedule"),
+                                        new SubcommandData("delete", "Delete one of your TTRPG sessions")
+                                                .addOption(OptionType.INTEGER, "id", "The event id", true)
                                 ))
                 .queue();
     }

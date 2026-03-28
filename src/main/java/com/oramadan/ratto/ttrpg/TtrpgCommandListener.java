@@ -1,0 +1,278 @@
+package com.oramadan.ratto.ttrpg;
+
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class TtrpgCommandListener extends ListenerAdapter {
+
+    private static final Logger logger = LoggerFactory.getLogger(TtrpgCommandListener.class);
+
+    private static final String COMMAND_NAME = "ttrpg";
+    private static final String SUBCOMMAND_CREATE = "create";
+    private static final String SUBCOMMAND_EDIT = "edit";
+    private static final String SUBCOMMAND_WEEK = "week";
+    private static final String SUBCOMMAND_CAMPAIGNS = "campaigns";
+    private static final String SUBCOMMAND_DELETE = "delete";
+
+    private final TtrpgService ttrpgService;
+
+    public TtrpgCommandListener(TtrpgService ttrpgService) {
+        this.ttrpgService = ttrpgService;
+    }
+
+    @Override
+    public void onReady(@NotNull ReadyEvent event) {
+        logger.info("TtrpgCommandListener is ready and listening");
+    }
+
+    @Override
+    public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
+        if (!COMMAND_NAME.equals(event.getName()) || event.getGuild() == null || !(event.getChannel() instanceof GuildMessageChannel channel)) {
+            return;
+        }
+
+        String subcommandName = event.getSubcommandName();
+        if (SUBCOMMAND_CREATE.equals(subcommandName)) {
+            handleCreate(event, channel);
+            return;
+        }
+
+        if (SUBCOMMAND_WEEK.equals(subcommandName)) {
+            handleWeek(event, channel);
+            return;
+        }
+
+        if (SUBCOMMAND_EDIT.equals(subcommandName)) {
+            handleEdit(event, channel);
+            return;
+        }
+
+        if (SUBCOMMAND_CAMPAIGNS.equals(subcommandName)) {
+            handleCampaigns(event, channel);
+            return;
+        }
+
+        if (SUBCOMMAND_DELETE.equals(subcommandName)) {
+            handleDelete(event, channel);
+        }
+    }
+
+    private void handleCreate(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        OptionMapping nameOption = event.getOption("name");
+        OptionMapping whenOption = event.getOption("when");
+        OptionMapping gmOption = event.getOption("gm");
+        if (nameOption == null || whenOption == null || gmOption == null || gmOption.getAsUser().isBot()) {
+            event.reply("You must provide an event name, time in `" + TtrpgService.INPUT_TIME_ZONE_LABEL + "`, and a valid GM.").setEphemeral(true).queue();
+            return;
+        }
+
+        String playersRaw = event.getOption("players", OptionMapping::getAsString);
+        boolean recurringWeekly = event.getOption("weekly", false, OptionMapping::getAsBoolean);
+
+        try {
+            TtrpgEventDetails createdEvent = ttrpgService.createEvent(
+                    event.getGuild().getIdLong(),
+                    gmOption.getAsUser().getIdLong(),
+                    nameOption.getAsString(),
+                    whenOption.getAsString(),
+                    recurringWeekly,
+                    playersRaw
+            );
+
+            event.reply(buildCreateMessage(createdEvent, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+        } catch (IllegalArgumentException exception) {
+            event.reply(exception.getMessage()).setEphemeral(true).queue();
+        }
+    }
+
+    private void handleWeek(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        List<TtrpgWeekEntry> entries = ttrpgService.getCurrentWeekSchedule(event.getGuild().getIdLong());
+        event.reply(buildWeekMessage(entries, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+    }
+
+    private void handleEdit(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        OptionMapping idOption = event.getOption("id");
+        if (idOption == null) {
+            event.reply("You must provide an event id to edit.").setEphemeral(true).queue();
+            return;
+        }
+
+        String newName = event.getOption("name", OptionMapping::getAsString);
+        String newWhen = event.getOption("when", OptionMapping::getAsString);
+        OptionMapping gmOption = event.getOption("gm");
+        Long newGmUserId = gmOption == null ? null : gmOption.getAsUser().getIdLong();
+        Boolean newRecurringWeekly = event.getOption("weekly", (Boolean) null, OptionMapping::getAsBoolean);
+        String newPlayers = event.getOption("players", OptionMapping::getAsString);
+
+        try {
+            TtrpgEventDetails updatedEvent = ttrpgService.editEvent(
+                    event.getGuild().getIdLong(),
+                    idOption.getAsLong(),
+                    event.getUser().getIdLong(),
+                    newGmUserId,
+                    newName,
+                    newWhen,
+                    newRecurringWeekly,
+                    newPlayers
+            ).orElse(null);
+
+            if (updatedEvent == null) {
+                event.reply("I could not edit that event. Make sure it exists in this server and that you are its current GM.").setEphemeral(true).queue();
+                return;
+            }
+
+            event.reply(buildEditMessage(updatedEvent, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+        } catch (IllegalArgumentException exception) {
+            event.reply(exception.getMessage()).setEphemeral(true).queue();
+        }
+    }
+
+    private void handleDelete(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        OptionMapping idOption = event.getOption("id");
+        if (idOption == null) {
+            event.reply("You must provide an event id to delete.").setEphemeral(true).queue();
+            return;
+        }
+
+        boolean deleted = ttrpgService.deleteEvent(
+                event.getGuild().getIdLong(),
+                idOption.getAsLong(),
+                event.getUser().getIdLong()
+        );
+
+        if (!deleted) {
+            event.reply("I could not delete that event. Make sure it exists in this server and that you are its GM.").setEphemeral(true).queue();
+            return;
+        }
+
+        event.reply("Deleted TTRPG event `" + idOption.getAsLong() + "`.").queue();
+    }
+
+    private void handleCampaigns(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        long targetUserId = event.getOption("user", event.getUser().getIdLong(), OptionMapping::getAsLong);
+        List<TtrpgEventDetails> events = ttrpgService.getCampaignsForPlayer(event.getGuild().getIdLong(), targetUserId);
+        event.reply(buildCampaignsMessage(events, targetUserId, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+    }
+
+    private String buildCreateMessage(TtrpgEventDetails event, Guild guild, String timeZoneName) {
+        return """
+                Created TTRPG event `%d`: **%s**
+
+                When: %s
+                Recurs weekly: **%s**
+                GM: %s
+                Players: %s
+                Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
+                """.formatted(
+                event.id(),
+                event.name(),
+                formatDiscordTimestamp(event.scheduledAt()),
+                event.recurringWeekly() ? "yes" : "no",
+                formatUser(event.gmUserId(), guild),
+                formatPlayers(event.playerIds(), guild),
+                timeZoneName
+        );
+    }
+
+    private String buildEditMessage(TtrpgEventDetails event, Guild guild, String timeZoneName) {
+        return """
+                Updated TTRPG event `%d`: **%s**
+
+                When: %s
+                Recurs weekly: **%s**
+                GM: %s
+                Players: %s
+                Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
+                """.formatted(
+                event.id(),
+                event.name(),
+                formatDiscordTimestamp(event.scheduledAt()),
+                event.recurringWeekly() ? "yes" : "no",
+                formatUser(event.gmUserId(), guild),
+                formatPlayers(event.playerIds(), guild),
+                timeZoneName
+        );
+    }
+
+    private String buildWeekMessage(List<TtrpgWeekEntry> entries, Guild guild, String timeZoneName) {
+        if (entries.isEmpty()) {
+            return "No TTRPG sessions scheduled for this week. Input time is interpreted in `" + timeZoneName + "`. Discord displays timestamps in each viewer's local timezone.";
+        }
+
+        String body = entries.stream()
+                .map(entry -> """
+                        `%d` **%s**
+                        %s%s
+                        GM: %s
+                        Players: %s
+                        """.formatted(
+                        entry.id(),
+                        entry.name(),
+                        formatDiscordTimestamp(entry.occurrenceAt()),
+                        entry.recurringWeekly() ? " (weekly)" : "",
+                        formatUser(entry.gmUserId(), guild),
+                        formatPlayers(entry.playerIds(), guild)
+                ))
+                .collect(Collectors.joining("\n"));
+
+        return """
+                **TTRPG This Week**
+                Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
+
+                %s
+                """.formatted(timeZoneName, body);
+    }
+
+    private String buildCampaignsMessage(List<TtrpgEventDetails> events, long userId, Guild guild, String timeZoneName) {
+        if (events.isEmpty()) {
+            return formatUser(userId, guild) + " is not in any TTRPG campaigns for this server. Input time is interpreted in `" + timeZoneName + "`. Discord displays timestamps in each viewer's local timezone.";
+        }
+
+        String body = events.stream()
+                .map(event -> """
+                        `%d` **%s**
+                        %s%s
+                        GM: %s
+                        Players: %s
+                        """.formatted(
+                        event.id(),
+                        event.name(),
+                        formatDiscordTimestamp(event.scheduledAt()),
+                        event.recurringWeekly() ? " (weekly)" : "",
+                        formatUser(event.gmUserId(), guild),
+                        formatPlayers(event.playerIds(), guild)
+                ))
+                .collect(Collectors.joining("\n"));
+
+        return """
+                **TTRPG Campaigns For %s**
+                Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
+
+                %s
+                """.formatted(formatUser(userId, guild), timeZoneName, body);
+    }
+
+    private String formatPlayers(List<Long> playerIds, Guild guild) {
+        return playerIds.stream()
+                .map(userId -> formatUser(userId, guild))
+                .collect(Collectors.joining(", "));
+    }
+
+    private String formatUser(long userId, Guild guild) {
+        return guild.getMemberById(userId) != null ? guild.getMemberById(userId).getAsMention() : "<@" + userId + ">";
+    }
+
+    private String formatDiscordTimestamp(java.time.Instant instant) {
+        return "<t:" + instant.getEpochSecond() + ":F>";
+    }
+}

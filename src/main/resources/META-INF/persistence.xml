@@ -7,6 +7,8 @@
 
         <!-- Entities -->
         <class>com.oramadan.ratto.currency.CurrencyEntity</class>
+        <class>com.oramadan.ratto.ttrpg.TtrpgEventEntity</class>
+        <class>com.oramadan.ratto.ttrpg.TtrpgEventPlayerEntity</class>
 
         <!-- DB Config -->
         <properties>
@@ -15,7 +17,6 @@
             <property name="jakarta.persistence.jdbc.user" value="sa"/>
             <property name="jakarta.persistence.jdbc.password" value=""/>
 
-            <property name="hibernate.dialect" value="org.hibernate.dialect.HSQLDialect"/>
             <property name="hibernate.hbm2ddl.auto" value="update"/>
             <property name="hibernate.show_sql" value="false"/>
         </properties>
