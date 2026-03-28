@@ -24,8 +24,10 @@ public class BotCommandRegistrar {
                                                 .addOption(OptionType.USER, "user", "The user to challenge", true)
                                                 .addOption(OptionType.INTEGER, "max", "Starting roll maximum (defaults to 100)")
                                                 .addOption(OptionType.INTEGER, "wager", "Chedda wager per player (defaults to 0)"),
-                                        new SubcommandData("accept", "Accept a pending deathroll challenge"),
+                                        new SubcommandData("accept", "Accept a pending deathroll challenge")
+                                                .addOption(OptionType.USER, "user", "The user who challenged you", true),
                                         new SubcommandData("decline", "Decline a pending deathroll challenge")
+                                                .addOption(OptionType.USER, "user", "The user whose challenge you are declining", true)
                                 ))
                 .queue();
     }

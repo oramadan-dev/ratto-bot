@@ -16,7 +16,7 @@ public class CurrencyService {
 
     private final CurrencyRepository repository;
     private final SecureRandom random = new SecureRandom();
-    private final Map<Long, Deque<Instant>> scavengeAttemptsByUser = new ConcurrentHashMap<>();
+    private final Map<CurrencyId, Deque<Instant>> scavengeAttemptsByUser = new ConcurrentHashMap<>();
 
     public CurrencyService(CurrencyRepository repository) {
         this.repository = repository;
@@ -24,39 +24,40 @@ public class CurrencyService {
 
     // -------- Currency Management --------
 
-    public int getCheddaFor(long userId) {
+    public int getCheddaFor(long guildId, long userId) {
         return repository
-                .findByUserId(userId)
+                .findByUserId(guildId, userId)
                 .getChedda();
     }
 
-    public boolean hasChedda(long userId, int chedda) {
+    public boolean hasChedda(long guildId, long userId, int chedda) {
         return repository
-                .findByUserId(userId)
+                .findByUserId(guildId, userId)
                 .hasChedda(chedda);
     }
 
-    public void addChedda(long userId, int chedda) {
-        CurrencyEntity userCurrency = repository.findByUserId(userId);
+    public void addChedda(long guildId, long userId, int chedda) {
+        CurrencyEntity userCurrency = repository.findByUserId(guildId, userId);
         userCurrency.addChedda(chedda);
         repository.save(userCurrency);
     }
 
-    public void removeChedda(long userId, int chedda) {
-        CurrencyEntity userCurrency = repository.findByUserId(userId);
+    public void removeChedda(long guildId, long userId, int chedda) {
+        CurrencyEntity userCurrency = repository.findByUserId(guildId, userId);
         userCurrency.removeChedda(chedda);
         repository.save(userCurrency);
     }
 
-    public List<CurrencyLeaderboardEntry> getLeaderboard() {
-        return repository.findAllOrderByCheddaDesc()
+    public List<CurrencyLeaderboardEntry> getLeaderboard(long guildId) {
+        return repository.findAllOrderByCheddaDesc(guildId)
                 .stream()
                 .map(currencyEntity -> new CurrencyLeaderboardEntry(currencyEntity.getUserId(), currencyEntity.getChedda()))
                 .toList();
     }
 
-    public CurrencyScavengeResult scavenge(long userId) {
-        Deque<Instant> attempts = scavengeAttemptsByUser.computeIfAbsent(userId, ignored -> new ArrayDeque<>());
+    public CurrencyScavengeResult scavenge(long guildId, long userId) {
+        CurrencyId currencyId = new CurrencyId(guildId, userId);
+        Deque<Instant> attempts = scavengeAttemptsByUser.computeIfAbsent(currencyId, ignored -> new ArrayDeque<>());
         Instant now = Instant.now();
 
         synchronized (attempts) {
@@ -69,7 +70,7 @@ public class CurrencyService {
             attempts.addLast(now);
             int awardedChedda = rollScavengeReward();
             if (awardedChedda > 0) {
-                addChedda(userId, awardedChedda);
+                addChedda(guildId, userId, awardedChedda);
             }
 
             return new CurrencyScavengeResult(false, awardedChedda, MAX_SCAVENGES_PER_HOUR - attempts.size());

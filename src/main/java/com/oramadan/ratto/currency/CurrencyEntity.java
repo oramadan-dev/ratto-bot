@@ -3,6 +3,7 @@ package com.oramadan.ratto.currency;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -11,10 +12,14 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "currency")
+@IdClass(CurrencyId.class)
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class CurrencyEntity {
+
+    @Id
+    private long guildId;
 
     @Id
     private long userId;

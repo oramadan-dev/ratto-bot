@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 public final class DeathrollGame {
 
+    private final long guildId;
     private final long threadId;
     private final long challengerId;
     private final long challengedId;
@@ -16,7 +17,8 @@ public final class DeathrollGame {
 
     @Setter private long activePromptMessageId;
 
-    public DeathrollGame(long threadId, long challengerId, long challengedId, int startingMaximum, int wagerChedda, long currentTurnUserId) {
+    public DeathrollGame(long guildId, long threadId, long challengerId, long challengedId, int startingMaximum, int wagerChedda, long currentTurnUserId) {
+        this.guildId = guildId;
         this.threadId = threadId;
         this.challengerId = challengerId;
         this.challengedId = challengedId;

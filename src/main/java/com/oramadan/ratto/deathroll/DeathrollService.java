@@ -1,6 +1,7 @@
 package com.oramadan.ratto.deathroll;
 
 import com.oramadan.ratto.deathroll.dto.DeathrollChallenge;
+import com.oramadan.ratto.deathroll.dto.DeathrollPair;
 import com.oramadan.ratto.deathroll.dto.DeathrollRollResult;
 
 import java.security.SecureRandom;
@@ -15,7 +16,8 @@ public class DeathrollService {
     private static final int MINIMUM_WAGER = 0;
 
     private final SecureRandom random = new SecureRandom();
-    private final Map<Long, DeathrollChallenge> pendingChallengesByUser = new ConcurrentHashMap<>();
+    private final Map<DeathrollPair, DeathrollChallenge> pendingChallengesByPair = new ConcurrentHashMap<>();
+    private final Map<DeathrollPair, Long> activeThreadIdsByPair = new ConcurrentHashMap<>();
     private final Map<Long, DeathrollGame> activeGamesByThread = new ConcurrentHashMap<>();
 
     // -------- Challenge Management --------
@@ -33,8 +35,8 @@ public class DeathrollService {
             return Optional.empty();
         }
 
-        // Do not allow a user to be in multiple challenges or games
-        if (hasPendingChallenge(challengerId) || hasPendingChallenge(challengedId) || hasActiveGame(challengerId) || hasActiveGame(challengedId)) {
+        DeathrollPair pair = DeathrollPair.of(challengerId, challengedId);
+        if (pendingChallengesByPair.containsKey(pair) || activeThreadIdsByPair.containsKey(pair)) {
             return Optional.empty();
         }
 
@@ -47,21 +49,25 @@ public class DeathrollService {
                 startingMaximum,
                 wagerChedda
         );
-        pendingChallengesByUser.put(challengedId, challenge);
+        pendingChallengesByPair.put(pair, challenge);
         return Optional.of(challenge);
     }
 
-    public Optional<DeathrollChallenge> removeChallenge(long guildId, long channelId, long challengedUserId) {
-        DeathrollChallenge challenge = pendingChallengesByUser.get(challengedUserId);
+    public Optional<DeathrollChallenge> removeChallenge(long guildId, long channelId, long challengerUserId, long challengedUserId) {
+        DeathrollPair pair = DeathrollPair.of(challengerUserId, challengedUserId);
+        DeathrollChallenge challenge = pendingChallengesByPair.get(pair);
         if (challenge == null) {
             return Optional.empty();
         }
 
-        if (challenge.guildId() != guildId || challenge.channelId() != channelId) {
+        if (challenge.guildId() != guildId
+                || challenge.channelId() != channelId
+                || challenge.challengerId() != challengerUserId
+                || challenge.challengedId() != challengedUserId) {
             return Optional.empty();
         }
 
-        pendingChallengesByUser.remove(challengedUserId);
+        pendingChallengesByPair.remove(pair);
         return Optional.of(challenge);
     }
 
@@ -69,6 +75,7 @@ public class DeathrollService {
 
     public DeathrollGame startGame(long threadId, DeathrollChallenge challenge) {
         DeathrollGame game = new DeathrollGame(
+                challenge.guildId(),
                 threadId,
                 challenge.challengerId(),
                 challenge.challengedId(),
@@ -76,6 +83,7 @@ public class DeathrollService {
                 challenge.wagerChedda(),
                 challenge.challengerId()
         );
+        activeThreadIdsByPair.put(DeathrollPair.of(challenge.challengerId(), challenge.challengedId()), threadId);
         activeGamesByThread.put(threadId, game);
         return game;
     }
@@ -85,7 +93,13 @@ public class DeathrollService {
     }
 
     public Optional<DeathrollGame> removeGame(long threadId) {
-        return Optional.ofNullable(activeGamesByThread.remove(threadId));
+        DeathrollGame game = activeGamesByThread.remove(threadId);
+        if (game == null) {
+            return Optional.empty();
+        }
+
+        activeThreadIdsByPair.remove(DeathrollPair.of(game.getChallengerId(), game.getChallengedId()));
+        return Optional.of(game);
     }
 
     public Optional<DeathrollRollResult> roll(long threadId, long userId, long promptMessageId) {
@@ -99,6 +113,7 @@ public class DeathrollService {
 
         if (rolledValue == 1) {
             activeGamesByThread.remove(threadId);
+            activeThreadIdsByPair.remove(DeathrollPair.of(game.getChallengerId(), game.getChallengedId()));
             return Optional.of(new DeathrollRollResult(rolledValue, previousMaximum, true, userId, 0L, 1));
         }
 
@@ -111,20 +126,5 @@ public class DeathrollService {
                 game.getCurrentTurnUserId(),
                 game.getCurrentMaximum()
         ));
-    }
-    // -------- Helpers --------
-
-    private boolean hasPendingChallenge(long userId) {
-        if (pendingChallengesByUser.containsKey(userId)) {
-            return true;
-        }
-
-        return pendingChallengesByUser.values()
-                .stream()
-                .anyMatch(challenge -> challenge.challengerId() == userId);
-    }
-
-    private boolean hasActiveGame(long userId) {
-        return activeGamesByThread.values().stream().anyMatch(game -> game.involves(userId));
     }
 }

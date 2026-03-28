@@ -14,18 +14,18 @@ public class CurrencyRepository {
         this.defaultChedda = currencyConfig.getDefaultChedda();
     }
 
-    public CurrencyEntity findByUserId(long userId) {
+    public CurrencyEntity findByUserId(long guildId, long userId) {
         EntityManager entityManager = JpaManager.createEntityManager();
         try {
             // Try and find an existing currency entry
-            CurrencyEntity currencyEntity = entityManager.find(CurrencyEntity.class, userId);
+            CurrencyEntity currencyEntity = entityManager.find(CurrencyEntity.class, new CurrencyId(guildId, userId));
             if (currencyEntity != null) {
                 return currencyEntity;
             }
 
             // Create and persist the default amount of currency
             entityManager.getTransaction().begin();
-            CurrencyEntity newCurrencyEntity = new CurrencyEntity(userId, defaultChedda);
+            CurrencyEntity newCurrencyEntity = new CurrencyEntity(guildId, userId, defaultChedda);
             entityManager.persist(newCurrencyEntity);
             entityManager.getTransaction().commit();
 
@@ -57,23 +57,24 @@ public class CurrencyRepository {
         }
     }
 
-    public List<CurrencyEntity> findAllOrderByCheddaDesc() {
+    public List<CurrencyEntity> findAllOrderByCheddaDesc(long guildId) {
         EntityManager entityManager = JpaManager.createEntityManager();
         try {
             return entityManager.createQuery(
-                    "SELECT currency FROM CurrencyEntity currency ORDER BY currency.chedda DESC, currency.userId ASC",
+                    "SELECT currency FROM CurrencyEntity currency WHERE currency.guildId = :guildId ORDER BY currency.chedda DESC, currency.userId ASC",
                     CurrencyEntity.class
-            ).getResultList();
+            ).setParameter("guildId", guildId)
+                    .getResultList();
         } finally {
             entityManager.close();
         }
     }
 
-    public void deleteByUserId(long userId) {
+    public void deleteByUserId(long guildId, long userId) {
         EntityManager entityManager = JpaManager.createEntityManager();
         try {
             entityManager.getTransaction().begin();
-            CurrencyEntity currencyEntity = entityManager.find(CurrencyEntity.class, userId);
+            CurrencyEntity currencyEntity = entityManager.find(CurrencyEntity.class, new CurrencyId(guildId, userId));
             if (currencyEntity != null) {
                 entityManager.remove(currencyEntity);
             }

@@ -57,21 +57,23 @@ public class CurrencyCommandListener extends ListenerAdapter {
 
     // -------- Chedda Commands --------
     private void handleCheddaCheck(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        long guildId = event.getGuild().getIdLong();
         long userId = event.getUser().getIdLong();
 
         event.deferReply().queue();
-        int chedda = currencyService.getCheddaFor(userId);
+        int chedda = currencyService.getCheddaFor(guildId, userId);
         event.getHook()
                 .sendMessage(event.getUser().getAsMention() + " has **" + chedda + " \uD83E\uDDC0**")
                 .queue();
     }
 
     private void handleCheddaScavenge(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        long guildId = event.getGuild().getIdLong();
         long userId = event.getUser().getIdLong();
 
         event.deferReply().queue();
 
-        CurrencyScavengeResult result = currencyService.scavenge(userId);
+        CurrencyScavengeResult result = currencyService.scavenge(guildId, userId);
         if (result.rateLimited()) {
             event.getHook()
                     .sendMessage(event.getUser().getAsMention() + " has already scavenged 3 times in the last hour.")
@@ -79,7 +81,7 @@ public class CurrencyCommandListener extends ListenerAdapter {
             return;
         }
 
-        int totalChedda = currencyService.getCheddaFor(userId);
+        int totalChedda = currencyService.getCheddaFor(guildId, userId);
 
         String rewardMessage = result.awardedChedda() > 0
                 ? "found **" + result.awardedChedda() + " \uD83E\uDDC0**."
@@ -106,7 +108,7 @@ public class CurrencyCommandListener extends ListenerAdapter {
     }
 
     private String buildLeaderboardMessage(Guild guild, long requestingUserId) {
-        var leaderboard = currencyService.getLeaderboard();
+        var leaderboard = currencyService.getLeaderboard(guild.getIdLong());
         if (leaderboard.isEmpty()) {
             return "No chedda leaderboard entries yet.";
         }

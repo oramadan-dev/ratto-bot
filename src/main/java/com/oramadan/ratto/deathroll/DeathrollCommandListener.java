@@ -135,15 +135,23 @@ public class DeathrollCommandListener extends ListenerAdapter {
     }
 
     private void handleAcceptDeferred(SlashCommandInteractionEvent event, GuildMessageChannel channel, InteractionHook hook) {
+        OptionMapping userOption = event.getOption("user");
+        if (userOption == null || userOption.getAsUser().isBot()) {
+            hook.editOriginal("You must specify a valid challenger to accept.").queue();
+            return;
+        }
+
+        long challengerId = userOption.getAsUser().getIdLong();
         long challengedId = event.getUser().getIdLong();
         DeathrollChallenge challenge = deathrollService.removeChallenge(
                 event.getGuild().getIdLong(),
                 channel.getIdLong(),
+                challengerId,
                 challengedId
         ).orElse(null);
 
         if (challenge == null) {
-            hook.editOriginal("You do not have a pending deathroll challenge in this channel.").queue();
+            hook.editOriginal("You do not have a pending deathroll challenge from that user in this channel.").queue();
             return;
         }
 
@@ -187,15 +195,23 @@ public class DeathrollCommandListener extends ListenerAdapter {
     }
 
     private void handleDecline(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        OptionMapping userOption = event.getOption("user");
+        if (userOption == null || userOption.getAsUser().isBot()) {
+            event.reply("You must specify a valid challenger to decline.").setEphemeral(true).queue();
+            return;
+        }
+
+        long challengerId = userOption.getAsUser().getIdLong();
         long challengedId = event.getUser().getIdLong();
         DeathrollChallenge challenge = deathrollService.removeChallenge(
                 event.getGuild().getIdLong(),
                 channel.getIdLong(),
+                challengerId,
                 challengedId
         ).orElse(null);
 
         if (challenge == null) {
-            event.reply("You do not have a pending deathroll challenge in this channel.").setEphemeral(true).queue();
+            event.reply("You do not have a pending deathroll challenge from that user in this channel.").setEphemeral(true).queue();
             return;
         }
 
@@ -293,12 +309,14 @@ public class DeathrollCommandListener extends ListenerAdapter {
                 %s has challenged %s to a deathroll.
                 Starting range: `1-%d`.
                 %s
-                Use `/deathroll accept` or `/deathroll decline`.
+                Use `/deathroll accept user:%s` or `/deathroll decline user:%s`.
                 """.formatted(
                 mentionUser(challengerUserId),
                 mentionUser(challengedUserId),
                 startingMaximum,
-                wagerLine
+                wagerLine,
+                mentionUser(challengerUserId),
+                mentionUser(challengerUserId)
         );
     }
 
@@ -379,24 +397,25 @@ public class DeathrollCommandListener extends ListenerAdapter {
     }
 
     private String collectWagerIfNeeded(DeathrollChallenge challenge) {
+        long guildId = challenge.guildId();
         int wagerChedda = challenge.wagerChedda();
         if (wagerChedda == 0) {
             return null;
         }
 
-        if (!currencyService.hasChedda(challenge.challengerId(), wagerChedda)) {
+        if (!currencyService.hasChedda(guildId, challenge.challengerId(), wagerChedda)) {
             return mentionUser(challenge.challengerId()) + " no longer has enough chedda to cover the wager.";
         }
 
-        if (!currencyService.hasChedda(challenge.challengedId(), wagerChedda)) {
+        if (!currencyService.hasChedda(guildId, challenge.challengedId(), wagerChedda)) {
             return mentionUser(challenge.challengedId()) + " does not have enough chedda to accept that wager.";
         }
 
-        currencyService.removeChedda(challenge.challengerId(), wagerChedda);
+        currencyService.removeChedda(guildId, challenge.challengerId(), wagerChedda);
         try {
-            currencyService.removeChedda(challenge.challengedId(), wagerChedda);
+            currencyService.removeChedda(guildId, challenge.challengedId(), wagerChedda);
         } catch (RuntimeException exception) {
-            currencyService.addChedda(challenge.challengerId(), wagerChedda);
+            currencyService.addChedda(guildId, challenge.challengerId(), wagerChedda);
             throw exception;
         }
 
@@ -408,7 +427,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
             return;
         }
 
-        currencyService.addChedda(winnerUserId, game.getWagerChedda() * 2);
+        currencyService.addChedda(game.getGuildId(), winnerUserId, game.getWagerChedda() * 2);
     }
 
     private void refundWager(DeathrollGame game) {
@@ -416,8 +435,8 @@ public class DeathrollCommandListener extends ListenerAdapter {
             return;
         }
 
-        currencyService.addChedda(game.getChallengerId(), game.getWagerChedda());
-        currencyService.addChedda(game.getChallengedId(), game.getWagerChedda());
+        currencyService.addChedda(game.getGuildId(), game.getChallengerId(), game.getWagerChedda());
+        currencyService.addChedda(game.getGuildId(), game.getChallengedId(), game.getWagerChedda());
     }
 
     private String sanitizeThreadName(String value) {
