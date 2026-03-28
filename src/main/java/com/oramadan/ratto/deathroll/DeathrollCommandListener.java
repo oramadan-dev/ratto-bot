@@ -32,6 +32,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
     private static final String ROLL_BUTTON_PREFIX = "deathroll:roll:";
 
     private static final long GAME_TIMEOUT_HOURS = 1;
+    private static final long THREAD_DELETE_DELAY_SECONDS = 60;
 
     private final CurrencyService currencyService;
     private final DeathrollService deathrollService = new DeathrollService();
@@ -264,7 +265,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
                 payoutWinner(game, winnerUserId);
 
                 threadChannel.sendMessage(buildGameOverMessage(result, winnerUserId, game.getWagerChedda()))
-                        .queue(message -> threadChannel.delete().queueAfter(20, TimeUnit.SECONDS));
+                        .queue(message -> threadChannel.delete().queueAfter(THREAD_DELETE_DELAY_SECONDS, TimeUnit.SECONDS));
 
                 return;
             }
@@ -352,11 +353,12 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
                 %s
 
-                This thread will be deleted in 20 seconds.
+                This thread will be deleted in %d seconds.
                 """.formatted(
                 mentionUser(result.losingUserId()),
                 result.previousMaximum(),
-                payoutLine
+                payoutLine,
+                THREAD_DELETE_DELAY_SECONDS
         );
     }
 
