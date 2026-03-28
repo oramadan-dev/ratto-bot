@@ -1,0 +1,37 @@
+plugins {
+	id 'java'
+}
+
+group = 'com.oramadan.rotto'
+version = '0.0.1-0'
+
+ext {
+	jdaVersion = '6.4.0'
+	lombokVersion = '1.18.32'
+	slf4jVersion = '2.0.13'
+	logbackVersion = '1.5.13'
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// JDA
+	implementation "net.dv8tion:JDA:$jdaVersion"
+
+	// SLF4J + Logback (actual logging implementation)
+	implementation "org.slf4j:slf4j-api:$slf4jVersion"
+	implementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+	// Lombok
+	compileOnly "org.projectlombok:lombok:$lombokVersion"
+	annotationProcessor "org.projectlombok:lombok:$lombokVersion"
+
+	testCompileOnly "org.projectlombok:lombok:$lombokVersion"
+	testAnnotationProcessor "org.projectlombok:lombok:$lombokVersion"
+}
+
+test {
+	useJUnitPlatform()
+}
