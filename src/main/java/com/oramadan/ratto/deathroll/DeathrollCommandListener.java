@@ -2,26 +2,27 @@ package com.oramadan.ratto.deathroll;
 
 import com.oramadan.ratto.deathroll.dto.DeathrollChallenge;
 import com.oramadan.ratto.deathroll.dto.DeathrollRollResult;
-import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
-import net.dv8tion.jda.api.interactions.commands.OptionType;
-import net.dv8tion.jda.api.interactions.commands.build.Commands;
-import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
-import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.buttons.Button;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class DeathrollCommandListener extends ListenerAdapter {
+
+    private static final Logger logger = LoggerFactory.getLogger(DeathrollCommandListener.class);
 
     private static final String COMMAND_NAME = "deathroll";
     private static final String SUBCOMMAND_CHALLENGE = "challenge";
@@ -38,16 +39,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
     @Override
     public void onReady(@NotNull ReadyEvent event) {
-        JDA jda = event.getJDA();
-        jda.updateCommands()
-                .addCommands(Commands.slash(COMMAND_NAME, "Play a WoW-style deathroll game")
-                        .addSubcommands(
-                                new SubcommandData(SUBCOMMAND_CHALLENGE, "Challenge another user to a deathroll")
-                                        .addOption(OptionType.USER, "user", "The user to challenge", true),
-                                new SubcommandData(SUBCOMMAND_ACCEPT, "Accept a pending deathroll challenge"),
-                                new SubcommandData(SUBCOMMAND_DECLINE, "Decline a pending deathroll challenge")
-                        ))
-                .queue();
+        logger.info("DeathrollCommandListener is ready and listening");
     }
 
     @Override
@@ -117,7 +109,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
         event.deferReply(true).queue(hook -> handleAcceptDeferred(event, channel, hook));
     }
 
-    private void handleAcceptDeferred(SlashCommandInteractionEvent event, GuildMessageChannel channel, net.dv8tion.jda.api.interactions.InteractionHook hook) {
+    private void handleAcceptDeferred(SlashCommandInteractionEvent event, GuildMessageChannel channel, InteractionHook hook) {
         long challengedId = event.getUser().getIdLong();
         DeathrollChallenge challenge = deathrollService.removeChallenge(
                 event.getGuild().getIdLong(),

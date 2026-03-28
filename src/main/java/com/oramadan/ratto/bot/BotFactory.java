@@ -1,20 +1,28 @@
 package com.oramadan.ratto.bot;
 
 import com.oramadan.ratto.config.BotConfig;
+import com.oramadan.ratto.context.AppContext;
+import com.oramadan.ratto.currency.CurrencyCommandListener;
 import com.oramadan.ratto.deathroll.DeathrollCommandListener;
 import lombok.NonNull;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BotFactory {
 
-    public static JDA create(@NonNull BotConfig config) {
+    public static final Logger logger = LoggerFactory.getLogger(BotFactory.class);
 
-        JDABuilder builder = JDABuilder.createDefault(config.getToken());
+    public static JDA create(@NonNull AppContext appContext) {
+        logger.info("Bootstrapping ratto bot");
 
-        String activityType = config.getActivityType();
-        String activityText = config.getActivityText();
+        BotConfig botConfig = appContext.getBotConfig();
+        JDABuilder builder = JDABuilder.createDefault(botConfig.getToken());
+
+        String activityType = botConfig.getActivityType();
+        String activityText = botConfig.getActivityText();
 
         if (activityType != null && activityText != null && !activityText.isBlank()) {
             Activity activity = switch (activityType.toLowerCase()) {
@@ -30,7 +38,12 @@ public class BotFactory {
 
         // Capabilities
         builder.addEventListeners(new DeathrollCommandListener());
+        builder.addEventListeners(new CurrencyCommandListener(appContext.getCurrencyService()));
 
-        return builder.build();
+        JDA bot = builder.build();
+        BotCommandRegistrar.register(bot);
+        logger.info("Bot successfully initialized");
+
+        return bot;
     }
 }

@@ -44,3 +44,6 @@ bin/
 
 ### Config ###
 config/config.properties
+
+### Data ###
+data/*

@@ -42,6 +42,28 @@ public class Config {
         return value == null ? defaultValue : value;
     }
 
+    public int requiredInt(String key) {
+        String value = required(key);
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            throw new IllegalStateException("Invalid integer config: " + key, exception);
+        }
+    }
+
+    public int optionalInt(String key, int defaultValue) {
+        String value = optional(key);
+        if (value == null) {
+            return defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            throw new IllegalStateException("Invalid integer config: " + key, exception);
+        }
+    }
+
     private static String trim(String value) {
         return value == null ? null : value.trim();
     }

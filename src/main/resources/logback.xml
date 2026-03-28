@@ -1,0 +1,28 @@
+<configuration>
+
+    <!-- Console output -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Root -->
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <!-- Bot -->
+    <logger name="com.oramadan.ratto" level="INFO"/>
+
+    <!-- JDA -->
+    <logger name="net.dv8tion.jda" level="INFO"/>
+
+    <!-- Hibernate -->
+    <logger name="org.hibernate" level="WARN"/>
+
+    <!-- SQL logs -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+
+</configuration>
