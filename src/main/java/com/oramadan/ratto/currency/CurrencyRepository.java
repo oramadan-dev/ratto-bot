@@ -4,6 +4,8 @@ import com.oramadan.ratto.config.CurrencyConfig;
 import com.oramadan.ratto.persistence.JpaManager;
 import jakarta.persistence.EntityManager;
 
+import java.util.List;
+
 public class CurrencyRepository {
 
     private final int defaultChedda;
@@ -50,6 +52,18 @@ public class CurrencyRepository {
                 entityManager.getTransaction().rollback();
             }
             throw exception;
+        } finally {
+            entityManager.close();
+        }
+    }
+
+    public List<CurrencyEntity> findAllOrderByCheddaDesc() {
+        EntityManager entityManager = JpaManager.createEntityManager();
+        try {
+            return entityManager.createQuery(
+                    "SELECT currency FROM CurrencyEntity currency ORDER BY currency.chedda DESC, currency.userId ASC",
+                    CurrencyEntity.class
+            ).getResultList();
         } finally {
             entityManager.close();
         }

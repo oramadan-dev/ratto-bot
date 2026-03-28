@@ -13,7 +13,9 @@ public class BotCommandRegistrar {
                         // Currency
                         Commands.slash("chedda", "Manage your chedda")
                                 .addSubcommands(
-                                        new SubcommandData("check", "Check your chedda")
+                                        new SubcommandData("check", "Check your chedda"),
+                                        new SubcommandData("scavenge", "Try to scavenge some chedda"),
+                                        new SubcommandData("leaderboard", "Show the chedda board")
                                 ),
                         // Deathroll
                         Commands.slash("deathroll", "Play a WoW-style deathroll game")
