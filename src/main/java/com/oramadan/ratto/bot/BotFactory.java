@@ -37,7 +37,7 @@ public class BotFactory {
         }
 
         // Capabilities
-        builder.addEventListeners(new DeathrollCommandListener());
+        builder.addEventListeners(new DeathrollCommandListener(appContext.getCurrencyService()));
         builder.addEventListeners(new CurrencyCommandListener(appContext.getCurrencyService()));
 
         JDA bot = builder.build();

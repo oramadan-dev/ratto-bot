@@ -10,7 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class DeathrollService {
 
-    private static final int STARTING_MAXIMUM = 100;
+    public static final int DEFAULT_STARTING_MAXIMUM = 100;
+    private static final int MINIMUM_STARTING_MAXIMUM = 2;
+    private static final int MINIMUM_WAGER = 0;
 
     private final SecureRandom random = new SecureRandom();
     private final Map<Long, DeathrollChallenge> pendingChallengesByUser = new ConcurrentHashMap<>();
@@ -18,14 +20,33 @@ public class DeathrollService {
 
     // -------- Challenge Management --------
 
-    public Optional<DeathrollChallenge> createChallenge(long guildId, long channelId, long messageId, long challengerId, long challengedId) {
+    public Optional<DeathrollChallenge> createChallenge(
+            long guildId,
+            long channelId,
+            long messageId,
+            long challengerId,
+            long challengedId,
+            int startingMaximum,
+            int wagerChedda
+    ) {
+        if (startingMaximum < MINIMUM_STARTING_MAXIMUM || wagerChedda < MINIMUM_WAGER) {
+            return Optional.empty();
+        }
 
         // Do not allow a user to be in multiple challenges or games
         if (hasPendingChallenge(challengerId) || hasPendingChallenge(challengedId) || hasActiveGame(challengerId) || hasActiveGame(challengedId)) {
             return Optional.empty();
         }
 
-        DeathrollChallenge challenge = new DeathrollChallenge(guildId, channelId, messageId, challengerId, challengedId);
+        DeathrollChallenge challenge = new DeathrollChallenge(
+                guildId,
+                channelId,
+                messageId,
+                challengerId,
+                challengedId,
+                startingMaximum,
+                wagerChedda
+        );
         pendingChallengesByUser.put(challengedId, challenge);
         return Optional.of(challenge);
     }
@@ -47,7 +68,14 @@ public class DeathrollService {
     // -------- Game Management --------
 
     public DeathrollGame startGame(long threadId, DeathrollChallenge challenge) {
-        DeathrollGame game = new DeathrollGame(threadId, challenge.challengerId(), challenge.challengedId(), STARTING_MAXIMUM, challenge.challengerId());
+        DeathrollGame game = new DeathrollGame(
+                threadId,
+                challenge.challengerId(),
+                challenge.challengedId(),
+                challenge.startingMaximum(),
+                challenge.wagerChedda(),
+                challenge.challengerId()
+        );
         activeGamesByThread.put(threadId, game);
         return game;
     }

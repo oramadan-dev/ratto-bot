@@ -9,16 +9,20 @@ public final class DeathrollGame {
     private final long threadId;
     private final long challengerId;
     private final long challengedId;
+    private final int startingMaximum;
+    private final int wagerChedda;
     private long currentTurnUserId;
     private int currentMaximum;
 
     @Setter private long activePromptMessageId;
 
-    public DeathrollGame(long threadId, long challengerId, long challengedId, int currentMaximum, long currentTurnUserId) {
+    public DeathrollGame(long threadId, long challengerId, long challengedId, int startingMaximum, int wagerChedda, long currentTurnUserId) {
         this.threadId = threadId;
         this.challengerId = challengerId;
         this.challengedId = challengedId;
-        this.currentMaximum = currentMaximum;
+        this.startingMaximum = startingMaximum;
+        this.wagerChedda = wagerChedda;
+        this.currentMaximum = startingMaximum;
         this.currentTurnUserId = currentTurnUserId;
     }
 

@@ -1,5 +1,6 @@
 package com.oramadan.ratto.deathroll;
 
+import com.oramadan.ratto.currency.CurrencyService;
 import com.oramadan.ratto.deathroll.dto.DeathrollChallenge;
 import com.oramadan.ratto.deathroll.dto.DeathrollRollResult;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -32,8 +33,13 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
     private static final long GAME_TIMEOUT_HOURS = 1;
 
+    private final CurrencyService currencyService;
     private final DeathrollService deathrollService = new DeathrollService();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    public DeathrollCommandListener(CurrencyService currencyService) {
+        this.currencyService = currencyService;
+    }
 
     // -------- Feature Bootstrap --------
 
@@ -77,6 +83,9 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
         long challengerId = event.getUser().getIdLong();
         long challengedId = userOption.getAsUser().getIdLong();
+        int startingMaximum = getStartingMaximum(event.getOption("max"));
+        int wagerChedda = getWagerChedda(event.getOption("wager"));
+
         if (challengerId == challengedId) {
             event.reply("You cannot challenge yourself.")
                     .setEphemeral(true)
@@ -84,20 +93,36 @@ public class DeathrollCommandListener extends ListenerAdapter {
             return;
         }
 
+        if (startingMaximum < 2) {
+            event.reply("The starting max must be at least 2.")
+                    .setEphemeral(true)
+                    .queue();
+            return;
+        }
+
+        if (wagerChedda < 0) {
+            event.reply("The wager cannot be negative.")
+                    .setEphemeral(true)
+                    .queue();
+            return;
+        }
+
         event.deferReply(true).queue(hook -> channel.sendMessage(
-                buildChallengeMessage(event.getUser().getIdLong(), userOption.getAsUser().getIdLong())
+                buildChallengeMessage(challengerId, challengedId, startingMaximum, wagerChedda)
         ).queue(message -> {
             boolean created = deathrollService.createChallenge(
                     event.getGuild().getIdLong(),
                     channel.getIdLong(),
                     message.getIdLong(),
                     challengerId,
-                    challengedId
+                    challengedId,
+                    startingMaximum,
+                    wagerChedda
             ).isPresent();
 
             if (!created) {
                 message.delete().queue();
-                hook.editOriginal("One of those users is already in a pending or active deathroll.").queue();
+                hook.editOriginal("That deathroll challenge is invalid or one of those users is already in a pending or active deathroll.").queue();
                 return;
             }
 
@@ -119,6 +144,17 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
         if (challenge == null) {
             hook.editOriginal("You do not have a pending deathroll challenge in this channel.").queue();
+            return;
+        }
+
+        String wagerFailure = collectWagerIfNeeded(challenge);
+        if (wagerFailure != null) {
+            channel.retrieveMessageById(challenge.messageId()).queue(
+                    challengeMessage -> challengeMessage.delete().queue(),
+                    failure -> {
+                    }
+            );
+            hook.editOriginal(wagerFailure).queue();
             return;
         }
 
@@ -203,8 +239,9 @@ public class DeathrollCommandListener extends ListenerAdapter {
             // Game over
             if (result.gameOver()) {
                 long winnerUserId = game.otherPlayer(result.losingUserId());
+                payoutWinner(game, winnerUserId);
 
-                threadChannel.sendMessage(buildGameOverMessage(result, winnerUserId))
+                threadChannel.sendMessage(buildGameOverMessage(result, winnerUserId, game.getWagerChedda()))
                         .queue(message -> threadChannel.delete().queueAfter(20, TimeUnit.SECONDS));
 
                 return;
@@ -226,10 +263,12 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
     private void scheduleGameTimeout(long threadId, ThreadChannel threadChannel) {
         scheduler.schedule(() -> {
-            if (deathrollService.removeGame(threadId).isEmpty()) {
+            DeathrollGame game = deathrollService.removeGame(threadId).orElse(null);
+            if (game == null) {
                 return;
             }
 
+            refundWager(game);
             threadChannel.delete().queue(
                     success -> {
                     },
@@ -239,36 +278,55 @@ public class DeathrollCommandListener extends ListenerAdapter {
         }, GAME_TIMEOUT_HOURS, TimeUnit.HOURS);
     }
 
-    private String buildChallengeMessage(long challengerUserId, long challengedUserId) {
+    private String buildChallengeMessage(long challengerUserId, long challengedUserId, int startingMaximum, int wagerChedda) {
+        String wagerLine = wagerChedda > 0
+                ? "Wager: **" + wagerChedda + " chedda** each."
+                : "Wager: **none**.";
+
         return """
                 %s has challenged %s to a deathroll.
+                Starting range: `1-%d`.
+                %s
                 """.formatted(
                 mentionUser(challengerUserId),
-                mentionUser(challengedUserId)
+                mentionUser(challengedUserId),
+                startingMaximum,
+                wagerLine
         );
     }
 
     private String buildGameStartMessage(DeathrollChallenge challenge, DeathrollGame game) {
+        String wagerLine = challenge.wagerChedda() > 0
+                ? "Wager locked: **" + challenge.wagerChedda() + " chedda** each."
+                : "No chedda wager for this match.";
+
         return """
                 Deathroll started between %s and %s.
-                Starting range: `1-100`.
+                Starting range: `1-%d`.
+                %s
                 %s rolls first.
                 """.formatted(
                 mentionUser(challenge.challengerId()),
                 mentionUser(challenge.challengedId()),
+                game.getStartingMaximum(),
+                wagerLine,
                 mentionUser(game.getCurrentTurnUserId())
         );
     }
 
-    private String buildGameOverMessage(DeathrollRollResult result, long winnerUserId) {
+    private String buildGameOverMessage(DeathrollRollResult result, long winnerUserId, int wagerChedda) {
+        String payoutLine = wagerChedda > 0
+                ? "%s wins **%d chedda**.".formatted(mentionUser(winnerUserId), wagerChedda * 2)
+                : "%s wins the deathroll.".formatted(mentionUser(winnerUserId));
+
         return """
                 %s rolled **1** out of **%d** and loses.
-                %s wins the deathroll.
+                %s
                 This thread will be deleted in 20 seconds.
                 """.formatted(
                 mentionUser(result.losingUserId()),
                 result.previousMaximum(),
-                mentionUser(winnerUserId)
+                payoutLine
         );
     }
 
@@ -291,6 +349,64 @@ public class DeathrollCommandListener extends ListenerAdapter {
                         mentionUser(challengedUserId),
                         mentionUser(challengerUserId)
                 );
+    }
+
+    private int getStartingMaximum(OptionMapping option) {
+        if (option == null) {
+            return DeathrollService.DEFAULT_STARTING_MAXIMUM;
+        }
+
+        return option.getAsInt();
+    }
+
+    private int getWagerChedda(OptionMapping option) {
+        if (option == null) {
+            return 0;
+        }
+
+        return option.getAsInt();
+    }
+
+    private String collectWagerIfNeeded(DeathrollChallenge challenge) {
+        int wagerChedda = challenge.wagerChedda();
+        if (wagerChedda == 0) {
+            return null;
+        }
+
+        if (!currencyService.hasChedda(challenge.challengerId(), wagerChedda)) {
+            return mentionUser(challenge.challengerId()) + " no longer has enough chedda to cover the wager.";
+        }
+
+        if (!currencyService.hasChedda(challenge.challengedId(), wagerChedda)) {
+            return mentionUser(challenge.challengedId()) + " does not have enough chedda to accept that wager.";
+        }
+
+        currencyService.removeChedda(challenge.challengerId(), wagerChedda);
+        try {
+            currencyService.removeChedda(challenge.challengedId(), wagerChedda);
+        } catch (RuntimeException exception) {
+            currencyService.addChedda(challenge.challengerId(), wagerChedda);
+            throw exception;
+        }
+
+        return null;
+    }
+
+    private void payoutWinner(DeathrollGame game, long winnerUserId) {
+        if (game.getWagerChedda() == 0) {
+            return;
+        }
+
+        currencyService.addChedda(winnerUserId, game.getWagerChedda() * 2);
+    }
+
+    private void refundWager(DeathrollGame game) {
+        if (game.getWagerChedda() == 0) {
+            return;
+        }
+
+        currencyService.addChedda(game.getChallengerId(), game.getWagerChedda());
+        currencyService.addChedda(game.getChallengedId(), game.getWagerChedda());
     }
 
     private String sanitizeThreadName(String value) {

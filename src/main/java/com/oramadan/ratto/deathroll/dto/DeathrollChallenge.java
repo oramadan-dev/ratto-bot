@@ -5,6 +5,8 @@ public record DeathrollChallenge(
         long channelId,
         long messageId,
         long challengerId,
-        long challengedId
+        long challengedId,
+        int startingMaximum,
+        int wagerChedda
 ) {
 }

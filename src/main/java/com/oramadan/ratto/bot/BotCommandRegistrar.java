@@ -19,7 +19,9 @@ public class BotCommandRegistrar {
                         Commands.slash("deathroll", "Play a WoW-style deathroll game")
                                 .addSubcommands(
                                         new SubcommandData("challenge", "Challenge another user")
-                                                .addOption(OptionType.USER, "user", "The user to challenge", true),
+                                                .addOption(OptionType.USER, "user", "The user to challenge", true)
+                                                .addOption(OptionType.INTEGER, "max", "Starting roll maximum (defaults to 100)")
+                                                .addOption(OptionType.INTEGER, "wager", "Chedda wager per player (defaults to 0)"),
                                         new SubcommandData("accept", "Accept a pending deathroll challenge"),
                                         new SubcommandData("decline", "Decline a pending deathroll challenge")
                                 ))
