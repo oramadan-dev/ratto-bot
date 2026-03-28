@@ -28,6 +28,9 @@ public class BotFactory {
             }
         }
 
+        // Capabilities
+        builder.addEventListeners(new DeathrollCommandListener());
+
         return builder.build();
     }
 }
