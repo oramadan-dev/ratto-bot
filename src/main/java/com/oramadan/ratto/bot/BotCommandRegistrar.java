@@ -28,7 +28,7 @@ public class BotCommandRegistrar {
                                 .addSubcommands(
                                         new SubcommandData("challenge", "Challenge another user")
                                                 .addOption(OptionType.USER, "user", "The user to challenge", true)
-                                                .addOption(OptionType.INTEGER, "max", "Starting roll maximum (defaults to 100)")
+                                                .addOption(OptionType.INTEGER, "max", "S\tarting roll maximum (defaults to 100)")
                                                 .addOption(OptionType.INTEGER, "wager", "Chedda wager per player (defaults to 0)"),
                                         new SubcommandData("accept", "Accept a pending deathroll challenge")
                                                 .addOption(OptionType.USER, "user", "The user who challenged you", true),
@@ -56,6 +56,11 @@ public class BotCommandRegistrar {
                                         new SubcommandData("week", "Show this week's TTRPG schedule"),
                                         new SubcommandData("delete", "Delete one of your TTRPG sessions")
                                                 .addOption(OptionType.INTEGER, "id", "The event id", true)
+                                ),
+                        // Jokes
+                        Commands.slash("joke", "Fetched straight from Nizar's mind!")
+                                .addSubcommands(
+                                        new SubcommandData("get", "Get a new joke")
                                 ))
                 .queue();
     }

@@ -4,6 +4,7 @@ import com.oramadan.ratto.config.BotConfig;
 import com.oramadan.ratto.context.AppContext;
 import com.oramadan.ratto.currency.CurrencyCommandListener;
 import com.oramadan.ratto.deathroll.DeathrollCommandListener;
+import com.oramadan.ratto.joke.JokeCommandListener;
 import com.oramadan.ratto.ttrpg.TtrpgCommandListener;
 import lombok.NonNull;
 import net.dv8tion.jda.api.JDA;
@@ -41,6 +42,7 @@ public class BotFactory {
         builder.addEventListeners(new DeathrollCommandListener(appContext.getCurrencyService()));
         builder.addEventListeners(new CurrencyCommandListener(appContext.getCurrencyService()));
         builder.addEventListeners(new TtrpgCommandListener(appContext.getTtrpgService()));
+        builder.addEventListeners(new JokeCommandListener());
 
         JDA bot = builder.build();
         BotCommandRegistrar.register(bot);
