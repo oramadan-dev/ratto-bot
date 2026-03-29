@@ -284,7 +284,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
     }
 
     private String formatDisplayName(long userId, Map<Long, String> displayNames) {
-        return displayNames.getOrDefault(userId, Long.toString(userId));
+        return displayNames.getOrDefault(userId, "Unknown User");
     }
 
     private String formatDiscordTimestamp(java.time.Instant instant) {
@@ -369,9 +369,12 @@ public class TtrpgCommandListener extends ListenerAdapter {
         guild.retrieveMemberById(userId).queue(member -> {
             displayNames.put(userId, member.getEffectiveName());
             resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
-        }, failure -> {
-            displayNames.putIfAbsent(userId, Long.toString(userId));
+        }, failure -> guild.getJDA().retrieveUserById(userId).queue(user -> {
+            displayNames.put(userId, user.getName());
             resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
-        });
+        }, userFailure -> {
+            displayNames.putIfAbsent(userId, "Unknown User");
+            resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
+        }));
     }
 }

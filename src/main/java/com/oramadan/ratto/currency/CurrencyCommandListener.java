@@ -9,6 +9,12 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
 public class CurrencyCommandListener extends ListenerAdapter {
     private static final int LEADERBOARD_SIZE = 10;
 
@@ -103,12 +109,18 @@ public class CurrencyCommandListener extends ListenerAdapter {
             return;
         }
 
-        String leaderboardMessage = buildLeaderboardMessage(guild, event.getUser().getIdLong());
-        event.getHook().sendMessage(leaderboardMessage).queue();
+        var leaderboard = currencyService.getLeaderboard(guild.getIdLong());
+        resolveDisplayNames(guild, leaderboard, displayNames -> {
+            String leaderboardMessage = buildLeaderboardMessage(leaderboard, event.getUser().getIdLong(), displayNames);
+            event.getHook().sendMessage(leaderboardMessage).queue();
+        });
     }
 
-    private String buildLeaderboardMessage(Guild guild, long requestingUserId) {
-        var leaderboard = currencyService.getLeaderboard(guild.getIdLong());
+    private String buildLeaderboardMessage(
+            java.util.List<CurrencyLeaderboardEntry> leaderboard,
+            long requestingUserId,
+            Map<Long, String> displayNames
+    ) {
         if (leaderboard.isEmpty()) {
             return "No chedda leaderboard entries yet.";
         }
@@ -120,7 +132,7 @@ public class CurrencyCommandListener extends ListenerAdapter {
             CurrencyLeaderboardEntry entry = leaderboard.get(index);
             builder.append(getRankPrefix(index + 1))
                     .append(" ")
-                    .append(formatUser(entry.userId(), guild))
+                    .append(formatUser(entry.userId(), displayNames))
                     .append(" - **")
                     .append(entry.chedda())
                     .append(" \uD83E\uDDC0**")
@@ -134,7 +146,7 @@ public class CurrencyCommandListener extends ListenerAdapter {
                     .append("Your rank: ")
                     .append(getRankPrefix(requesterRank))
                     .append(" ")
-                    .append(formatUser(requesterEntry.userId(), guild))
+                    .append(formatUser(requesterEntry.userId(), displayNames))
                     .append(" - **")
                     .append(requesterEntry.chedda())
                     .append(" \uD83E\uDDC0**");
@@ -162,12 +174,62 @@ public class CurrencyCommandListener extends ListenerAdapter {
         };
     }
 
-    private String formatUser(long userId, Guild guild) {
-        if (guild.getMemberById(userId) != null) {
-            return guild.getMemberById(userId).getEffectiveName();
+    private String formatUser(long userId, Map<Long, String> displayNames) {
+        return displayNames.getOrDefault(userId, "Unknown User");
+    }
+
+    private void resolveDisplayNames(
+            Guild guild,
+            java.util.List<CurrencyLeaderboardEntry> leaderboard,
+            Consumer<Map<Long, String>> consumer
+    ) {
+        Map<Long, String> displayNames = new HashMap<>();
+        List<Long> missingUserIds = new ArrayList<>();
+
+        for (CurrencyLeaderboardEntry entry : leaderboard) {
+            long userId = entry.userId();
+            if (displayNames.containsKey(userId)) {
+                continue;
+            }
+
+            if (guild.getMemberById(userId) != null) {
+                displayNames.put(userId, guild.getMemberById(userId).getEffectiveName());
+            } else {
+                missingUserIds.add(userId);
+            }
         }
 
-        return Long.toString(userId);
+        if (missingUserIds.isEmpty()) {
+            consumer.accept(displayNames);
+            return;
+        }
+
+        resolveMissingDisplayNames(guild, missingUserIds, 0, displayNames, consumer);
+    }
+
+    private void resolveMissingDisplayNames(
+            Guild guild,
+            List<Long> missingUserIds,
+            int index,
+            Map<Long, String> displayNames,
+            Consumer<Map<Long, String>> consumer
+    ) {
+        if (index >= missingUserIds.size()) {
+            consumer.accept(displayNames);
+            return;
+        }
+
+        long userId = missingUserIds.get(index);
+        guild.retrieveMemberById(userId).queue(member -> {
+            displayNames.put(userId, member.getEffectiveName());
+            resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
+        }, failure -> guild.getJDA().retrieveUserById(userId).queue(user -> {
+            displayNames.put(userId, user.getName());
+            resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
+        }, userFailure -> {
+            displayNames.putIfAbsent(userId, "Unknown User");
+            resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
+        }));
     }
 
 }

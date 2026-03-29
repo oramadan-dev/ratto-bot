@@ -5,6 +5,7 @@ import com.oramadan.ratto.deathroll.dto.DeathrollChallenge;
 import com.oramadan.ratto.deathroll.dto.DeathrollRollResult;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -17,6 +18,9 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Consumer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -191,25 +195,30 @@ public class DeathrollCommandListener extends ListenerAdapter {
         }
 
         channel.retrieveMessageById(challenge.messageId()).queue(challengeMessage -> {
-            String challengerName = event.getGuild().getMemberById(challenge.challengerId()) != null
-                    ? event.getGuild().getMemberById(challenge.challengerId()).getEffectiveName()
-                    : Long.toString(challenge.challengerId());
-            String challengedName = event.getMember() != null
-                    ? event.getMember().getEffectiveName()
-                    : event.getUser().getName();
-            String threadName = "deathroll-" + sanitizeThreadName(challengerName) + "-vs-" + sanitizeThreadName(challengedName);
-            challengeMessage.createThreadChannel(threadName).queue(threadChannel -> {
-                DeathrollGame game = deathrollService.startGame(threadChannel.getIdLong(), challenge);
-                challengeMessage.editMessage(buildChallengeAcceptedMessage(challenge, threadChannel.getIdLong())).queue();
-                threadChannel.sendMessage(buildGameStartMessage(challenge, game))
-                        .setComponents(ActionRow.of(Button.primary(ROLL_BUTTON_PREFIX + threadChannel.getIdLong(), "Roll"))).queue(message -> {
-                    game.setActivePromptMessageId(message.getIdLong());
-                    threadChannel.addThreadMemberById(challenge.challengerId()).queue();
-                    threadChannel.addThreadMemberById(challenge.challengedId()).queue();
-                    scheduleGameTimeout(threadChannel.getIdLong(), threadChannel);
-                    hook.deleteOriginal().queue();
-                });
-            }, failure -> hook.editOriginal("I could not create the deathroll thread here.").queue());
+            resolveUserNames(
+                    event.getGuild(),
+                    challenge.challengerId(),
+                    challenge.challengedId(),
+                    resolvedNames -> {
+                        String challengerName = resolvedNames.getOrDefault(challenge.challengerId(), "challenger");
+                        String challengedName = resolvedNames.getOrDefault(challenge.challengedId(), "challenged");
+                        String threadName = "deathroll-" + sanitizeThreadName(challengerName) + "-vs-" + sanitizeThreadName(challengedName);
+
+                        // Create deathroll thread, start game, add challengers, schedule time out.
+                        challengeMessage.createThreadChannel(threadName).queue(threadChannel -> {
+                            DeathrollGame game = deathrollService.startGame(threadChannel.getIdLong(), challenge);
+                            challengeMessage.editMessage(buildChallengeAcceptedMessage(challenge, threadChannel.getIdLong())).queue();
+                            threadChannel.sendMessage(buildGameStartMessage(challenge, game))
+                                    .setComponents(ActionRow.of(Button.primary(ROLL_BUTTON_PREFIX + threadChannel.getIdLong(), "Roll"))).queue(message -> {
+                                game.setActivePromptMessageId(message.getIdLong());
+                                threadChannel.addThreadMemberById(challenge.challengerId()).queue();
+                                threadChannel.addThreadMemberById(challenge.challengedId()).queue();
+                                scheduleGameTimeout(threadChannel.getIdLong(), threadChannel);
+                                hook.deleteOriginal().queue();
+                            });
+                        }, failure -> hook.editOriginal("I could not create the deathroll thread here.").queue());
+                    }
+            );
         }, failure -> hook.editOriginal("The original challenge message could not be found.").queue());
     }
 
@@ -557,5 +566,27 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
     private String mentionChannel(long channelId) {
         return "<#" + channelId + ">";
+    }
+
+    private void resolveUserNames(Guild guild, long firstUserId, long secondUserId, Consumer<Map<Long, String>> consumer) {
+        Map<Long, String> names = new HashMap<>();
+        resolveUserName(guild, firstUserId, firstName -> {
+            names.put(firstUserId, firstName);
+            resolveUserName(guild, secondUserId, secondName -> {
+                names.put(secondUserId, secondName);
+                consumer.accept(names);
+            });
+        });
+    }
+
+    private void resolveUserName(Guild guild, long userId, Consumer<String> consumer) {
+        if (guild.getMemberById(userId) != null) {
+            consumer.accept(guild.getMemberById(userId).getEffectiveName());
+            return;
+        }
+
+        guild.retrieveMemberById(userId).queue(member -> consumer.accept(member.getEffectiveName()), failure ->
+                guild.getJDA().retrieveUserById(userId).queue(user -> consumer.accept(user.getName()), userFailure ->
+                        consumer.accept("unknown-user")));
     }
 }
