@@ -38,5 +38,5 @@ public class TtrpgEventEntity {
     private Instant scheduledAt;
 
     @Column(nullable = false)
-    private boolean recurringWeekly;
+    private int recurrenceWeeks;
 }

@@ -12,6 +12,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,6 +27,9 @@ public class TtrpgService {
 
     public static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm";
     public static final String INPUT_TIME_ZONE_LABEL = "GMT+0";
+    public static final String RECURRENCE_NONE = "none";
+    public static final String RECURRENCE_WEEKLY = "weekly";
+    public static final String RECURRENCE_BIWEEKLY = "biweekly";
 
     private static final Pattern USER_ID_PATTERN = Pattern.compile("\\d+");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(DATE_TIME_FORMAT);
@@ -39,8 +43,9 @@ public class TtrpgService {
         this.authorizationService = authorizationService;
     }
 
-    public TtrpgEventDetails createEvent(long guildId, long gmUserId, String name, String scheduledAtRaw, boolean recurringWeekly, String playersRaw) {
+    public TtrpgEventDetails createEvent(long guildId, long gmUserId, String name, String scheduledAtRaw, String recurrenceRaw, String playersRaw) {
         Instant scheduledAt = parseScheduledAt(scheduledAtRaw);
+        int recurrenceWeeks = parseRecurrenceWeeks(recurrenceRaw);
         Set<Long> playerIds = parsePlayerIds(playersRaw);
         playerIds.add(gmUserId);
 
@@ -53,7 +58,7 @@ public class TtrpgService {
                 gmUserId,
                 name.trim(),
                 scheduledAt,
-                recurringWeekly,
+                recurrenceWeeks,
                 new ArrayList<>(playerIds)
         );
     }
@@ -65,10 +70,10 @@ public class TtrpgService {
             Long newGmUserId,
             String newName,
             String newScheduledAtRaw,
-            Boolean newRecurringWeekly,
+            String newRecurrenceRaw,
             String playersRaw
     ) {
-        if (newName == null && newScheduledAtRaw == null && newRecurringWeekly == null && newGmUserId == null && playersRaw == null) {
+        if (newName == null && newScheduledAtRaw == null && newRecurrenceRaw == null && newGmUserId == null && playersRaw == null) {
             throw new IllegalArgumentException("You must provide at least one field to edit.");
         }
 
@@ -91,6 +96,8 @@ public class TtrpgService {
             replacementPlayerIds = new ArrayList<>(playerIds);
         }
 
+        Integer newRecurrenceWeeks = newRecurrenceRaw == null ? null : parseRecurrenceWeeks(newRecurrenceRaw);
+
         return repository.updateEvent(
                 guildId,
                 eventId,
@@ -99,7 +106,7 @@ public class TtrpgService {
                 newGmUserId,
                 trimmedName,
                 newScheduledAt,
-                newRecurringWeekly,
+                newRecurrenceWeeks,
                 replacementPlayerIds
         );
     }
@@ -126,7 +133,7 @@ public class TtrpgService {
     public List<TtrpgEventDetails> getCampaignsForPlayer(long guildId, long userId) {
         return repository.findAllByGuildId(guildId).stream()
                 .filter(event -> event.playerIds().contains(userId))
-                .sorted(Comparator.comparing(TtrpgEventDetails::recurringWeekly).reversed()
+                .sorted(Comparator.comparing(TtrpgEventDetails::recurrenceWeeks).reversed()
                         .thenComparing(TtrpgEventDetails::scheduledAt)
                         .thenComparing(TtrpgEventDetails::id))
                 .toList();
@@ -159,8 +166,22 @@ public class TtrpgService {
         return playerIds;
     }
 
+    private int parseRecurrenceWeeks(String recurrenceRaw) {
+        if (recurrenceRaw == null || recurrenceRaw.isBlank() || RECURRENCE_NONE.equalsIgnoreCase(recurrenceRaw)) {
+            return 0;
+        }
+        if (RECURRENCE_WEEKLY.equalsIgnoreCase(recurrenceRaw)) {
+            return 1;
+        }
+        if (RECURRENCE_BIWEEKLY.equalsIgnoreCase(recurrenceRaw)) {
+            return 2;
+        }
+
+        throw new IllegalArgumentException("Invalid recurrence. Use `none`, `weekly`, or `biweekly`.");
+    }
+
     private java.util.Optional<TtrpgWeekEntry> toWeekEntry(TtrpgEventDetails event, ZonedDateTime weekStart, ZonedDateTime weekEndExclusive) {
-        if (!event.recurringWeekly()) {
+        if (event.recurrenceWeeks() == 0) {
             if (event.scheduledAt().isBefore(weekStart.toInstant()) || !event.scheduledAt().isBefore(weekEndExclusive.toInstant())) {
                 return java.util.Optional.empty();
             }
@@ -169,6 +190,14 @@ public class TtrpgService {
         }
 
         ZonedDateTime sourceDateTime = event.scheduledAt().atZone(INPUT_ZONE_ID);
+        ZonedDateTime sourceWeekStart = sourceDateTime.toLocalDate()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .atStartOfDay(INPUT_ZONE_ID);
+        long weeksBetween = ChronoUnit.WEEKS.between(sourceWeekStart.toLocalDate(), weekStart.toLocalDate());
+        if (weeksBetween < 0 || weeksBetween % event.recurrenceWeeks() != 0) {
+            return java.util.Optional.empty();
+        }
+
         LocalDate occurrenceDate = weekStart.toLocalDate().with(TemporalAdjusters.nextOrSame(sourceDateTime.getDayOfWeek()));
         ZonedDateTime occurrenceAt = ZonedDateTime.of(occurrenceDate, LocalTime.from(sourceDateTime), INPUT_ZONE_ID);
         if (occurrenceAt.isBefore(weekStart) || !occurrenceAt.isBefore(weekEndExclusive)) {
@@ -183,7 +212,7 @@ public class TtrpgService {
                 event.id(),
                 event.name(),
                 occurrenceAt,
-                event.recurringWeekly(),
+                event.recurrenceWeeks(),
                 event.gmUserId(),
                 event.playerIds()
         );

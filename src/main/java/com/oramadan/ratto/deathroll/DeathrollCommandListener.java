@@ -310,7 +310,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
                 %s has challenged %s to a deathroll.
                 Starting range: `1-%d`.
                 %s
-                Use `/deathroll accept user:%s` or `/deathroll decline user:%s`.
+                Use `/deathroll accept` with `user` set to %s, or `/deathroll decline` with `user` set to %s.
                 """.formatted(
                 mentionUser(challengerUserId),
                 mentionUser(challengedUserId),

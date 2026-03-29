@@ -77,7 +77,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
         }
 
         String playersRaw = event.getOption("players", OptionMapping::getAsString);
-        boolean recurringWeekly = event.getOption("weekly", false, OptionMapping::getAsBoolean);
+        String recurrence = event.getOption("recurrence", TtrpgService.RECURRENCE_NONE, OptionMapping::getAsString);
 
         try {
             TtrpgEventDetails createdEvent = ttrpgService.createEvent(
@@ -85,7 +85,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                     gmOption.getAsUser().getIdLong(),
                     nameOption.getAsString(),
                     whenOption.getAsString(),
-                    recurringWeekly,
+                    recurrence,
                     playersRaw
             );
 
@@ -111,7 +111,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
         String newWhen = event.getOption("when", OptionMapping::getAsString);
         OptionMapping gmOption = event.getOption("gm");
         Long newGmUserId = gmOption == null ? null : gmOption.getAsUser().getIdLong();
-        Boolean newRecurringWeekly = event.getOption("weekly", (Boolean) null, OptionMapping::getAsBoolean);
+        String newRecurrence = event.getOption("recurrence", OptionMapping::getAsString);
         String newPlayers = event.getOption("players", OptionMapping::getAsString);
 
         try {
@@ -122,7 +122,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                     newGmUserId,
                     newName,
                     newWhen,
-                    newRecurringWeekly,
+                    newRecurrence,
                     newPlayers
             ).orElse(null);
 
@@ -169,7 +169,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 Created TTRPG event `%d`: **%s**
 
                 When: %s
-                Recurs weekly: **%s**
+                Recurrence: **%s**
                 GM: %s
                 Players: %s
                 Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
@@ -177,7 +177,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 event.id(),
                 event.name(),
                 formatDiscordTimestamp(event.scheduledAt()),
-                event.recurringWeekly() ? "yes" : "no",
+                formatRecurrence(event.recurrenceWeeks()),
                 formatUser(event.gmUserId(), guild),
                 formatPlayers(event.playerIds(), guild),
                 timeZoneName
@@ -189,7 +189,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 Updated TTRPG event `%d`: **%s**
 
                 When: %s
-                Recurs weekly: **%s**
+                Recurrence: **%s**
                 GM: %s
                 Players: %s
                 Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
@@ -197,7 +197,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 event.id(),
                 event.name(),
                 formatDiscordTimestamp(event.scheduledAt()),
-                event.recurringWeekly() ? "yes" : "no",
+                formatRecurrence(event.recurrenceWeeks()),
                 formatUser(event.gmUserId(), guild),
                 formatPlayers(event.playerIds(), guild),
                 timeZoneName
@@ -219,7 +219,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                         entry.id(),
                         entry.name(),
                         formatDiscordTimestamp(entry.occurrenceAt()),
-                        entry.recurringWeekly() ? " (weekly)" : "",
+                        formatRecurrenceSuffix(entry.recurrenceWeeks()),
                         formatUser(entry.gmUserId(), guild),
                         formatPlayers(entry.playerIds(), guild)
                 ))
@@ -248,7 +248,7 @@ public class TtrpgCommandListener extends ListenerAdapter {
                         event.id(),
                         event.name(),
                         formatDiscordTimestamp(event.scheduledAt()),
-                        event.recurringWeekly() ? " (weekly)" : "",
+                        formatRecurrenceSuffix(event.recurrenceWeeks()),
                         formatUser(event.gmUserId(), guild),
                         formatPlayers(event.playerIds(), guild)
                 ))
@@ -274,5 +274,22 @@ public class TtrpgCommandListener extends ListenerAdapter {
 
     private String formatDiscordTimestamp(java.time.Instant instant) {
         return "<t:" + instant.getEpochSecond() + ":F>";
+    }
+
+    private String formatRecurrence(int recurrenceWeeks) {
+        return switch (recurrenceWeeks) {
+            case 0 -> "none";
+            case 1 -> "weekly";
+            case 2 -> "biweekly";
+            default -> "every " + recurrenceWeeks + " weeks";
+        };
+    }
+
+    private String formatRecurrenceSuffix(int recurrenceWeeks) {
+        if (recurrenceWeeks == 0) {
+            return "";
+        }
+
+        return " (" + formatRecurrence(recurrenceWeeks) + ")";
     }
 }

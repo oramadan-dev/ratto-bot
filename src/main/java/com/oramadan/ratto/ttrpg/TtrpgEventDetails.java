@@ -9,7 +9,7 @@ public record TtrpgEventDetails(
         long gmUserId,
         String name,
         Instant scheduledAt,
-        boolean recurringWeekly,
+        int recurrenceWeeks,
         List<Long> playerIds
 ) {
 }

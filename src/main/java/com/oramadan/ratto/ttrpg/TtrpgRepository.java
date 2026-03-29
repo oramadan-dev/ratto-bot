@@ -9,12 +9,12 @@ import java.util.Optional;
 
 public class TtrpgRepository {
 
-    public TtrpgEventDetails saveEvent(long guildId, long gmUserId, String name, Instant scheduledAt, boolean recurringWeekly, List<Long> playerIds) {
+    public TtrpgEventDetails saveEvent(long guildId, long gmUserId, String name, Instant scheduledAt, int recurrenceWeeks, List<Long> playerIds) {
         EntityManager entityManager = JpaManager.createEntityManager();
         try {
             entityManager.getTransaction().begin();
 
-            TtrpgEventEntity eventEntity = new TtrpgEventEntity(null, guildId, gmUserId, name, scheduledAt, recurringWeekly);
+            TtrpgEventEntity eventEntity = new TtrpgEventEntity(null, guildId, gmUserId, name, scheduledAt, recurrenceWeeks);
             entityManager.persist(eventEntity);
 
             for (Long playerId : playerIds) {
@@ -28,7 +28,7 @@ public class TtrpgRepository {
                     eventEntity.getGmUserId(),
                     eventEntity.getName(),
                     eventEntity.getScheduledAt(),
-                    eventEntity.isRecurringWeekly(),
+                    eventEntity.getRecurrenceWeeks(),
                     List.copyOf(playerIds)
             );
         } catch (RuntimeException exception) {
@@ -56,7 +56,7 @@ public class TtrpgRepository {
                             eventEntity.getGmUserId(),
                             eventEntity.getName(),
                             eventEntity.getScheduledAt(),
-                            eventEntity.isRecurringWeekly(),
+                            eventEntity.getRecurrenceWeeks(),
                             findPlayerIdsByEventId(entityManager, eventEntity.getId())
                     ))
                     .toList();
@@ -73,7 +73,7 @@ public class TtrpgRepository {
             Long newGmUserId,
             String newName,
             Instant newScheduledAt,
-            Boolean newRecurringWeekly,
+            Integer newRecurrenceWeeks,
             List<Long> replacementPlayerIds
     ) {
         EntityManager entityManager = JpaManager.createEntityManager();
@@ -100,8 +100,8 @@ public class TtrpgRepository {
             if (newScheduledAt != null) {
                 eventEntity.setScheduledAt(newScheduledAt);
             }
-            if (newRecurringWeekly != null) {
-                eventEntity.setRecurringWeekly(newRecurringWeekly);
+            if (newRecurrenceWeeks != null) {
+                eventEntity.setRecurrenceWeeks(newRecurrenceWeeks);
             }
 
             long effectiveGmUserId = eventEntity.getGmUserId();
@@ -135,7 +135,7 @@ public class TtrpgRepository {
                     eventEntity.getGmUserId(),
                     eventEntity.getName(),
                     eventEntity.getScheduledAt(),
-                    eventEntity.isRecurringWeekly(),
+                    eventEntity.getRecurrenceWeeks(),
                     findPlayerIdsByEventId(entityManager, eventEntity.getId())
             ));
         } catch (RuntimeException exception) {

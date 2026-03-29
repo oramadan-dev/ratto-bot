@@ -2,12 +2,18 @@ package com.oramadan.ratto.bot;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 
 public class BotCommandRegistrar {
 
     public static void register(JDA jda) {
+        OptionData ttrpgRecurrenceOption = new OptionData(OptionType.STRING, "recurrence", "Recurrence: none, weekly, or biweekly", false)
+                .addChoice("None", "none")
+                .addChoice("Weekly", "weekly")
+                .addChoice("Biweekly", "biweekly");
+
         jda.updateCommands()
                 .addCommands(
                         // Currency
@@ -36,14 +42,14 @@ public class BotCommandRegistrar {
                                                 .addOption(OptionType.STRING, "name", "Event name", true)
                                                 .addOption(OptionType.STRING, "when", "When to play in GMT+0, format: yyyy-MM-dd HH:mm", true)
                                                 .addOption(OptionType.USER, "gm", "The game master for this event", true)
-                                                .addOption(OptionType.BOOLEAN, "weekly", "Whether the event recurs every week")
+                                                .addOptions(ttrpgRecurrenceOption)
                                                 .addOption(OptionType.STRING, "players", "Mention or paste player ids separated by spaces"),
                                         new SubcommandData("edit", "Edit one of your TTRPG sessions")
                                                 .addOption(OptionType.INTEGER, "id", "The event id", true)
                                                 .addOption(OptionType.STRING, "name", "Updated event name")
                                                 .addOption(OptionType.STRING, "when", "Updated time in GMT+0, format: yyyy-MM-dd HH:mm")
                                                 .addOption(OptionType.USER, "gm", "Updated game master")
-                                                .addOption(OptionType.BOOLEAN, "weekly", "Updated recurring weekly flag")
+                                                .addOptions(ttrpgRecurrenceOption)
                                                 .addOption(OptionType.STRING, "players", "Replacement player list via mentions or ids"),
                                         new SubcommandData("campaigns", "Show a player's TTRPG campaigns")
                                                 .addOption(OptionType.USER, "user", "The player to inspect"),

@@ -7,7 +7,7 @@ public record TtrpgWeekEntry(
         long id,
         String name,
         Instant occurrenceAt,
-        boolean recurringWeekly,
+        int recurrenceWeeks,
         long gmUserId,
         List<Long> playerIds
 ) {
