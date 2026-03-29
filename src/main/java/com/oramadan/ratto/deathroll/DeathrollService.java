@@ -76,6 +76,8 @@ public class DeathrollService {
     public DeathrollGame startGame(long threadId, DeathrollChallenge challenge) {
         DeathrollGame game = new DeathrollGame(
                 challenge.guildId(),
+                challenge.channelId(),
+                challenge.messageId(),
                 threadId,
                 challenge.challengerId(),
                 challenge.challengedId(),

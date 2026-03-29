@@ -28,6 +28,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
     private static final String COMMAND_NAME = "deathroll";
     private static final String SUBCOMMAND_CHALLENGE = "challenge";
     private static final String SUBCOMMAND_ACCEPT = "accept";
+    private static final String SUBCOMMAND_CANCEL = "cancel";
     private static final String SUBCOMMAND_DECLINE = "decline";
     private static final String ROLL_BUTTON_PREFIX = "deathroll:roll:";
 
@@ -63,6 +64,11 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
         if (SUBCOMMAND_ACCEPT.equals(subcommandName)) {
             handleAccept(event, channel);
+            return;
+        }
+
+        if (SUBCOMMAND_CANCEL.equals(subcommandName)) {
+            handleCancel(event, channel);
             return;
         }
 
@@ -106,6 +112,23 @@ public class DeathrollCommandListener extends ListenerAdapter {
                     .setEphemeral(true)
                     .queue();
             return;
+        }
+
+        if (wagerChedda > 0) {
+            long guildId = event.getGuild().getIdLong();
+            if (!currencyService.hasChedda(guildId, challengerId, wagerChedda)) {
+                event.reply("You do not have enough chedda to cover that wager.")
+                        .setEphemeral(true)
+                        .queue();
+                return;
+            }
+
+            if (!currencyService.hasChedda(guildId, challengedId, wagerChedda)) {
+                event.reply(userOption.getAsUser().getAsMention() + " does not have enough chedda to cover that wager.")
+                        .setEphemeral(true)
+                        .queue();
+                return;
+            }
         }
 
         event.deferReply(true).queue(hook -> channel.sendMessage(
@@ -177,12 +200,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
             String threadName = "deathroll-" + sanitizeThreadName(challengerName) + "-vs-" + sanitizeThreadName(challengedName);
             challengeMessage.createThreadChannel(threadName).queue(threadChannel -> {
                 DeathrollGame game = deathrollService.startGame(threadChannel.getIdLong(), challenge);
-                challengeMessage.delete().queue(
-                        success -> {
-                        },
-                        failure -> {
-                        }
-                );
+                challengeMessage.editMessage(buildChallengeAcceptedMessage(challenge, threadChannel.getIdLong())).queue();
                 threadChannel.sendMessage(buildGameStartMessage(challenge, game))
                         .setComponents(ActionRow.of(Button.primary(ROLL_BUTTON_PREFIX + threadChannel.getIdLong(), "Roll"))).queue(message -> {
                     game.setActivePromptMessageId(message.getIdLong());
@@ -226,6 +244,36 @@ public class DeathrollCommandListener extends ListenerAdapter {
                 .queue();
     }
 
+    private void handleCancel(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
+        OptionMapping userOption = event.getOption("user");
+        if (userOption == null || userOption.getAsUser().isBot()) {
+            event.reply("You must specify a valid user whose challenge you want to cancel.").setEphemeral(true).queue();
+            return;
+        }
+
+        long challengerId = event.getUser().getIdLong();
+        long challengedId = userOption.getAsUser().getIdLong();
+        DeathrollChallenge challenge = deathrollService.removeChallenge(
+                event.getGuild().getIdLong(),
+                channel.getIdLong(),
+                challengerId,
+                challengedId
+        ).orElse(null);
+
+        if (challenge == null) {
+            event.reply("You do not have a pending deathroll challenge to that user in this channel.").setEphemeral(true).queue();
+            return;
+        }
+
+        channel.retrieveMessageById(challenge.messageId()).queue(
+                challengeMessage -> challengeMessage.delete().queue(),
+                failure -> {
+                }
+        );
+
+        event.reply(buildCancelMessage(challengerId, challengedId)).queue();
+    }
+
     // -------- Game Interaction --------
 
     @Override
@@ -263,6 +311,7 @@ public class DeathrollCommandListener extends ListenerAdapter {
             if (result.gameOver()) {
                 long winnerUserId = game.otherPlayer(result.losingUserId());
                 payoutWinner(game, winnerUserId);
+                updateChallengeMessage(threadChannel, game, winnerUserId);
 
                 threadChannel.sendMessage(buildGameOverMessage(result, winnerUserId, game.getWagerChedda()))
                         .queue(message -> threadChannel.delete().queueAfter(THREAD_DELETE_DELAY_SECONDS, TimeUnit.SECONDS));
@@ -362,6 +411,55 @@ public class DeathrollCommandListener extends ListenerAdapter {
         );
     }
 
+    private void updateChallengeMessage(ThreadChannel threadChannel, DeathrollGame game, long winnerUserId) {
+        GuildMessageChannel challengeChannel = threadChannel.getJDA().getChannelById(GuildMessageChannel.class, game.getChallengeChannelId());
+        if (challengeChannel == null) {
+            return;
+        }
+
+        challengeChannel.retrieveMessageById(game.getChallengeMessageId()).queue(
+                challengeMessage -> challengeMessage.editMessage(buildChallengeResultMessage(game, winnerUserId)).queue(),
+                failure -> {
+                }
+        );
+    }
+
+    private String buildChallengeResultMessage(DeathrollGame game, long winnerUserId) {
+        if (game.getWagerChedda() > 0) {
+            return "%s has won the deathroll and won **%d chedda** against %s."
+                    .formatted(
+                            mentionUser(winnerUserId),
+                            game.getWagerChedda() * 2,
+                            mentionUser(game.otherPlayer(winnerUserId))
+                    );
+        }
+
+        return "%s has won the deathroll against %s."
+                .formatted(
+                        mentionUser(winnerUserId),
+                        mentionUser(game.otherPlayer(winnerUserId))
+                );
+    }
+
+    private String buildChallengeAcceptedMessage(DeathrollChallenge challenge, long threadId) {
+        String wagerLine = challenge.wagerChedda() > 0
+                ? "Wager: **" + challenge.wagerChedda() + " chedda** each."
+                : "Wager: **none**.";
+
+        return """
+                %s's deathroll challenge against %s has been accepted.
+                Starting range: `1-%d`.
+                %s
+                Spectate here: %s
+                """.formatted(
+                mentionUser(challenge.challengerId()),
+                mentionUser(challenge.challengedId()),
+                challenge.startingMaximum(),
+                wagerLine,
+                mentionChannel(threadId)
+        );
+    }
+
     private String buildNextRollMessage(long userId, DeathrollRollResult result) {
         return """
                 %s rolled **%d** out of **%d**.
@@ -379,6 +477,14 @@ public class DeathrollCommandListener extends ListenerAdapter {
                 .formatted(
                         mentionUser(challengedUserId),
                         mentionUser(challengerUserId)
+                );
+    }
+
+    private String buildCancelMessage(long challengerUserId, long challengedUserId) {
+        return "%s canceled the deathroll challenge to %s."
+                .formatted(
+                        mentionUser(challengerUserId),
+                        mentionUser(challengedUserId)
                 );
     }
 
@@ -447,5 +553,9 @@ public class DeathrollCommandListener extends ListenerAdapter {
 
     private String mentionUser(long userId) {
         return "<@" + userId + ">";
+    }
+
+    private String mentionChannel(long channelId) {
+        return "<#" + channelId + ">";
     }
 }

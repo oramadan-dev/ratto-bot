@@ -164,10 +164,10 @@ public class CurrencyCommandListener extends ListenerAdapter {
 
     private String formatUser(long userId, Guild guild) {
         if (guild.getMemberById(userId) != null) {
-            return guild.getMemberById(userId).getAsMention();
+            return guild.getMemberById(userId).getEffectiveName();
         }
 
-        return "<@" + userId + ">";
+        return Long.toString(userId);
     }
 
 }

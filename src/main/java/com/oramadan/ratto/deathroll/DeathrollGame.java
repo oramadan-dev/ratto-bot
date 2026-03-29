@@ -7,6 +7,8 @@ import lombok.Setter;
 public final class DeathrollGame {
 
     private final long guildId;
+    private final long challengeChannelId;
+    private final long challengeMessageId;
     private final long threadId;
     private final long challengerId;
     private final long challengedId;
@@ -17,8 +19,20 @@ public final class DeathrollGame {
 
     @Setter private long activePromptMessageId;
 
-    public DeathrollGame(long guildId, long threadId, long challengerId, long challengedId, int startingMaximum, int wagerChedda, long currentTurnUserId) {
+    public DeathrollGame(
+            long guildId,
+            long challengeChannelId,
+            long challengeMessageId,
+            long threadId,
+            long challengerId,
+            long challengedId,
+            int startingMaximum,
+            int wagerChedda,
+            long currentTurnUserId
+    ) {
         this.guildId = guildId;
+        this.challengeChannelId = challengeChannelId;
+        this.challengeMessageId = challengeMessageId;
         this.threadId = threadId;
         this.challengerId = challengerId;
         this.challengedId = challengedId;

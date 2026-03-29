@@ -32,6 +32,8 @@ public class BotCommandRegistrar {
                                                 .addOption(OptionType.INTEGER, "wager", "Chedda wager per player (defaults to 0)"),
                                         new SubcommandData("accept", "Accept a pending deathroll challenge")
                                                 .addOption(OptionType.USER, "user", "The user who challenged you", true),
+                                        new SubcommandData("cancel", "Cancel a pending deathroll challenge you sent")
+                                                .addOption(OptionType.USER, "user", "The user you challenged", true),
                                         new SubcommandData("decline", "Decline a pending deathroll challenge")
                                                 .addOption(OptionType.USER, "user", "The user whose challenge you are declining", true)
                                 ),
