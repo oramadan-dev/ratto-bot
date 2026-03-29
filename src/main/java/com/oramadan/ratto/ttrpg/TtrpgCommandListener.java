@@ -10,7 +10,13 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TtrpgCommandListener extends ListenerAdapter {
@@ -89,7 +95,8 @@ public class TtrpgCommandListener extends ListenerAdapter {
                     playersRaw
             );
 
-            event.reply(buildCreateMessage(createdEvent, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+            event.deferReply().queue(hook -> resolveDisplayNames(event.getGuild(), collectUserIds(createdEvent), displayNames ->
+                    hook.sendMessage(buildCreateMessage(createdEvent, displayNames, ttrpgService.getTimeZoneName())).queue()));
         } catch (IllegalArgumentException exception) {
             event.reply(exception.getMessage()).setEphemeral(true).queue();
         }
@@ -97,7 +104,8 @@ public class TtrpgCommandListener extends ListenerAdapter {
 
     private void handleWeek(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
         List<TtrpgWeekEntry> entries = ttrpgService.getCurrentWeekSchedule(event.getGuild().getIdLong());
-        event.reply(buildWeekMessage(entries, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+        event.deferReply().queue(hook -> resolveDisplayNames(event.getGuild(), collectUserIds(entries), displayNames ->
+                hook.sendMessage(buildWeekMessage(entries, displayNames, ttrpgService.getTimeZoneName())).queue()));
     }
 
     private void handleEdit(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
@@ -131,7 +139,8 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 return;
             }
 
-            event.reply(buildEditMessage(updatedEvent, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+            event.deferReply().queue(hook -> resolveDisplayNames(event.getGuild(), collectUserIds(updatedEvent), displayNames ->
+                    hook.sendMessage(buildEditMessage(updatedEvent, displayNames, ttrpgService.getTimeZoneName())).queue()));
         } catch (IllegalArgumentException exception) {
             event.reply(exception.getMessage()).setEphemeral(true).queue();
         }
@@ -161,50 +170,53 @@ public class TtrpgCommandListener extends ListenerAdapter {
     private void handleCampaigns(SlashCommandInteractionEvent event, GuildMessageChannel channel) {
         long targetUserId = event.getOption("user", event.getUser().getIdLong(), OptionMapping::getAsLong);
         List<TtrpgEventDetails> events = ttrpgService.getCampaignsForPlayer(event.getGuild().getIdLong(), targetUserId);
-        event.reply(buildCampaignsMessage(events, targetUserId, event.getGuild(), ttrpgService.getTimeZoneName())).queue();
+        event.deferReply().queue(hook -> resolveDisplayNames(event.getGuild(), collectUserIds(events, targetUserId), displayNames ->
+                hook.sendMessage(buildCampaignsMessage(events, targetUserId, displayNames, ttrpgService.getTimeZoneName())).queue()));
     }
 
-    private String buildCreateMessage(TtrpgEventDetails event, Guild guild, String timeZoneName) {
+    private String buildCreateMessage(TtrpgEventDetails event, Map<Long, String> displayNames, String timeZoneName) {
         return """
                 Created TTRPG event `%d`: **%s**
 
                 When: %s
                 Recurrence: **%s**
                 GM: %s
-                Players: %s
+                Players:
+                %s
                 Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
                 """.formatted(
                 event.id(),
                 event.name(),
                 formatDiscordTimestamp(event.scheduledAt()),
                 formatRecurrence(event.recurrenceWeeks()),
-                formatUser(event.gmUserId(), guild),
-                formatPlayers(event.playerIds(), guild),
+                formatDisplayName(event.gmUserId(), displayNames),
+                formatPlayerNames(event.playerIds(), displayNames),
                 timeZoneName
         );
     }
 
-    private String buildEditMessage(TtrpgEventDetails event, Guild guild, String timeZoneName) {
+    private String buildEditMessage(TtrpgEventDetails event, Map<Long, String> displayNames, String timeZoneName) {
         return """
                 Updated TTRPG event `%d`: **%s**
 
                 When: %s
                 Recurrence: **%s**
                 GM: %s
-                Players: %s
+                Players:
+                %s
                 Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
                 """.formatted(
                 event.id(),
                 event.name(),
                 formatDiscordTimestamp(event.scheduledAt()),
                 formatRecurrence(event.recurrenceWeeks()),
-                formatUser(event.gmUserId(), guild),
-                formatPlayers(event.playerIds(), guild),
+                formatDisplayName(event.gmUserId(), displayNames),
+                formatPlayerNames(event.playerIds(), displayNames),
                 timeZoneName
         );
     }
 
-    private String buildWeekMessage(List<TtrpgWeekEntry> entries, Guild guild, String timeZoneName) {
+    private String buildWeekMessage(List<TtrpgWeekEntry> entries, Map<Long, String> displayNames, String timeZoneName) {
         if (entries.isEmpty()) {
             return "No TTRPG sessions scheduled for this week. Input time is interpreted in `" + timeZoneName + "`. Discord displays timestamps in each viewer's local timezone.";
         }
@@ -214,14 +226,15 @@ public class TtrpgCommandListener extends ListenerAdapter {
                         `%d` **%s**
                         %s%s
                         GM: %s
-                        Players: %s
+                        Players:
+                        %s
                         """.formatted(
                         entry.id(),
                         entry.name(),
                         formatDiscordTimestamp(entry.occurrenceAt()),
                         formatRecurrenceSuffix(entry.recurrenceWeeks()),
-                        formatUser(entry.gmUserId(), guild),
-                        formatPlayers(entry.playerIds(), guild)
+                        formatDisplayName(entry.gmUserId(), displayNames),
+                        formatPlayerNames(entry.playerIds(), displayNames)
                 ))
                 .collect(Collectors.joining("\n"));
 
@@ -233,9 +246,9 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 """.formatted(timeZoneName, body);
     }
 
-    private String buildCampaignsMessage(List<TtrpgEventDetails> events, long userId, Guild guild, String timeZoneName) {
+    private String buildCampaignsMessage(List<TtrpgEventDetails> events, long userId, Map<Long, String> displayNames, String timeZoneName) {
         if (events.isEmpty()) {
-            return formatUser(userId, guild) + " is not in any TTRPG campaigns for this server. Input time is interpreted in `" + timeZoneName + "`. Discord displays timestamps in each viewer's local timezone.";
+            return formatDisplayName(userId, displayNames) + " is not in any TTRPG campaigns for this server. Input time is interpreted in `" + timeZoneName + "`. Discord displays timestamps in each viewer's local timezone.";
         }
 
         String body = events.stream()
@@ -243,14 +256,15 @@ public class TtrpgCommandListener extends ListenerAdapter {
                         `%d` **%s**
                         %s%s
                         GM: %s
-                        Players: %s
+                        Players:
+                        %s
                         """.formatted(
                         event.id(),
                         event.name(),
                         formatDiscordTimestamp(event.scheduledAt()),
                         formatRecurrenceSuffix(event.recurrenceWeeks()),
-                        formatUser(event.gmUserId(), guild),
-                        formatPlayers(event.playerIds(), guild)
+                        formatDisplayName(event.gmUserId(), displayNames),
+                        formatPlayerNames(event.playerIds(), displayNames)
                 ))
                 .collect(Collectors.joining("\n"));
 
@@ -259,17 +273,18 @@ public class TtrpgCommandListener extends ListenerAdapter {
                 Input time is interpreted in `%s`. Discord displays timestamps in each viewer's local timezone.
 
                 %s
-                """.formatted(formatUser(userId, guild), timeZoneName, body);
+                """.formatted(formatDisplayName(userId, displayNames), timeZoneName, body);
     }
 
-    private String formatPlayers(List<Long> playerIds, Guild guild) {
+    private String formatPlayerNames(List<Long> playerIds, Map<Long, String> displayNames) {
         return playerIds.stream()
-                .map(userId -> formatUser(userId, guild))
-                .collect(Collectors.joining(", "));
+                .map(userId -> formatDisplayName(userId, displayNames))
+                .map(name -> "- " + name)
+                .collect(Collectors.joining("\n"));
     }
 
-    private String formatUser(long userId, Guild guild) {
-        return guild.getMemberById(userId) != null ? guild.getMemberById(userId).getAsMention() : "<@" + userId + ">";
+    private String formatDisplayName(long userId, Map<Long, String> displayNames) {
+        return displayNames.getOrDefault(userId, Long.toString(userId));
     }
 
     private String formatDiscordTimestamp(java.time.Instant instant) {
@@ -291,5 +306,72 @@ public class TtrpgCommandListener extends ListenerAdapter {
         }
 
         return " (" + formatRecurrence(recurrenceWeeks) + ")";
+    }
+
+    private void resolveDisplayNames(Guild guild, Set<Long> userIds, Consumer<Map<Long, String>> consumer) {
+        Map<Long, String> displayNames = new HashMap<>();
+        List<Long> missingUserIds = new ArrayList<>();
+
+        for (Long userId : userIds) {
+            if (guild.getMemberById(userId) != null) {
+                displayNames.put(userId, guild.getMemberById(userId).getEffectiveName());
+            } else {
+                missingUserIds.add(userId);
+            }
+        }
+
+        if (missingUserIds.isEmpty()) {
+            consumer.accept(displayNames);
+            return;
+        }
+
+        resolveMissingDisplayNames(guild, missingUserIds, 0, displayNames, consumer);
+    }
+
+    private Set<Long> collectUserIds(TtrpgEventDetails event) {
+        Set<Long> userIds = new LinkedHashSet<>(event.playerIds());
+        userIds.add(event.gmUserId());
+        return userIds;
+    }
+
+    private Set<Long> collectUserIds(List<TtrpgWeekEntry> entries) {
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (TtrpgWeekEntry entry : entries) {
+            userIds.add(entry.gmUserId());
+            userIds.addAll(entry.playerIds());
+        }
+        return userIds;
+    }
+
+    private Set<Long> collectUserIds(List<TtrpgEventDetails> events, long targetUserId) {
+        Set<Long> userIds = new LinkedHashSet<>();
+        userIds.add(targetUserId);
+        for (TtrpgEventDetails event : events) {
+            userIds.add(event.gmUserId());
+            userIds.addAll(event.playerIds());
+        }
+        return userIds;
+    }
+
+    private void resolveMissingDisplayNames(
+            Guild guild,
+            List<Long> missingUserIds,
+            int index,
+            Map<Long, String> displayNames,
+            Consumer<Map<Long, String>> consumer
+    ) {
+        if (index >= missingUserIds.size()) {
+            consumer.accept(displayNames);
+            return;
+        }
+
+        long userId = missingUserIds.get(index);
+        guild.retrieveMemberById(userId).queue(member -> {
+            displayNames.put(userId, member.getEffectiveName());
+            resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
+        }, failure -> {
+            displayNames.putIfAbsent(userId, Long.toString(userId));
+            resolveMissingDisplayNames(guild, missingUserIds, index + 1, displayNames, consumer);
+        });
     }
 }

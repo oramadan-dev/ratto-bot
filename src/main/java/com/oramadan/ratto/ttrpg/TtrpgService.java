@@ -122,7 +122,7 @@ public class TtrpgService {
                 .map(event -> toWeekEntry(event, weekStart, weekEndExclusive))
                 .filter(java.util.Optional::isPresent)
                 .map(java.util.Optional::get)
-                .sorted(Comparator.comparing(TtrpgWeekEntry::occurrenceAt).thenComparing(TtrpgWeekEntry::id))
+                .sorted(Comparator.comparing(TtrpgWeekEntry::id))
                 .toList();
     }
 
